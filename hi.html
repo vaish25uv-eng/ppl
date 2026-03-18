@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPvPL 2026 — Tournament Bracket</title>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Saira+Condensed:wght@300;400;600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  const app = initializeApp({ databaseURL:"https://ppl2026-6c198-default-rtdb.firebaseio.com/" });
+  const db  = getDatabase(app);
+
+  window._fb2 = {
+    async getTrainers(){
+      const snap = await get(ref(db,'ppl2026/trainers'));
+      if(!snap.exists()) return [];
+      return Object.entries(snap.val()).map(([k,v])=>({...v,_key:k}));
+    },
+    async getSettings(){
+      const snap = await get(ref(db,'ppl2026/settings'));
+      return snap.exists() ? snap.val() : {startDate:'2026-03-22'};
+    },
+    async getBracket(){
+      const snap = await get(ref(db,'ppl2026bracket'));
+      return snap.exists() ? snap.val() : null;
+    },
+    async setBracket(data){
+      await set(ref(db,'ppl2026bracket'), data);
+    },
+    onBracketChange(cb){
+      onValue(ref(db,'ppl2026bracket'), snap => cb(snap.exists()?snap.val():null));
+    },
+    onTrainersChange(cb){
+      onValue(ref(db,'ppl2026/trainers'), snap=>{
+        if(!snap.exists()){cb([]);return;}
+        cb(Object.entries(snap.val()).map(([k,v])=>({...v,_key:k})));
+      });
+    }
+  };
+  window._fb2ready = true;
+  document.dispatchEvent(new Event('fb2Ready'));
+</script>
+
+<style>
+:root{
+  --bg:#07080D;
+  --bg2:#0D0F18;
+  --bg3:#131620;
+  --bg4:#1A1D2E;
+  --border:#252840;
+  --border2:#343760;
+  --gold:#F5C518;
+  --gold2:#FFE066;
+  --red:#E8324A;
+  --red2:#FF6B7A;
+  --blue:#3B8BFF;
+  --blue2:#7DB8FF;
+  --green:#1ED980;
+  --green2:#5FFFB0;
+  --purple:#A855F7;
+  --orange:#FF8C42;
+  --text:#ECEEF8;
+  --text2:#9297B8;
+  --text3:#5A5F80;
+  --win-bg:rgba(30,217,128,.12);
+  --win-border:rgba(30,217,128,.4);
+  --lose-bg:rgba(232,50,74,.08);
+  --lose-border:rgba(232,50,74,.3);
+  --draw-bg:rgba(245,197,24,.08);
+  --draw-border:rgba(245,197,24,.3);
+  --ff:'Black Han Sans',sans-serif;
+  --fs:'Saira Condensed',sans-serif;
+  --fm:'Share Tech Mono',monospace;
+  --r:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;background:var(--bg)}
+body{color:var(--text);font-family:var(--fs);font-size:16px;overflow-x:hidden;min-height:100vh}
+
+/* ── SCANLINE OVERLAY ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.06) 3px,rgba(0,0,0,.06) 4px);
+  pointer-events:none;z-index:9999;
+}
+
+/* ── NAV ── */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(7,8,13,.95);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1.5rem;height:60px;gap:1rem;
+}
+.nav-logo{
+  font-family:var(--ff);font-size:15px;color:var(--gold);
+  text-shadow:0 0 20px rgba(245,197,24,.5);
+  letter-spacing:1px;white-space:nowrap;
+}
+.nav-logo span{color:var(--red);text-shadow:0 0 14px var(--red)}
+.nav-links{display:flex;gap:.25rem;list-style:none}
+.nav-links a{
+  color:var(--text2);text-decoration:none;font-family:var(--fs);
+  font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;
+  padding:5px 10px;border-radius:4px;transition:all .2s;
+}
+.nav-links a:hover{color:var(--gold);background:rgba(245,197,24,.07)}
+.nav-links a.back{color:var(--blue2);border:1px solid rgba(59,139,255,.25)}
+.nav-links a.back:hover{background:rgba(59,139,255,.1)}
+.nav-status{display:flex;align-items:center;gap:8px;font-family:var(--fm);font-size:11px;color:var(--text3)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
+.status-dot.live{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:.7}50%{opacity:1}}
+.nav-toggle{display:none;background:none;border:none;color:var(--gold);font-size:1.4rem;cursor:pointer}
+@media(max-width:768px){
+  .nav-toggle{display:block}
+  .nav-links{display:none;position:absolute;top:60px;left:0;right:0;flex-direction:column;background:rgba(7,8,13,.98);padding:.75rem;border-bottom:1px solid var(--border)}
+  .nav-links.open{display:flex}
+}
+
+/* ── HERO BAND ── */
+.hero-band{
+  background:linear-gradient(135deg,rgba(245,197,24,.06) 0%,rgba(232,50,74,.06) 50%,rgba(59,139,255,.06) 100%);
+  border-bottom:1px solid var(--border);
+  padding:3rem 1.5rem 2.5rem;text-align:center;position:relative;overflow:hidden;
+}
+.hero-band::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 80% at 50% -10%,rgba(245,197,24,.1),transparent 60%);
+  pointer-events:none;
+}
+.hero-tag{
+  font-family:var(--fm);font-size:10px;letter-spacing:4px;color:var(--gold);
+  text-transform:uppercase;margin-bottom:1rem;display:block;
+  text-shadow:0 0 10px rgba(245,197,24,.5);
+}
+.hero-title{
+  font-family:var(--ff);font-size:clamp(2rem,6vw,4.5rem);color:var(--text);
+  letter-spacing:2px;line-height:1;margin-bottom:.5rem;
+}
+.hero-title .accent{color:var(--gold);text-shadow:0 0 30px rgba(245,197,24,.4)}
+.hero-title .accent2{color:var(--red);text-shadow:0 0 24px rgba(232,50,74,.4)}
+.hero-sub{color:var(--text2);font-size:14px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:1.5rem}
+.hero-pills{display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 14px;border-radius:20px;font-family:var(--fm);font-size:11px;letter-spacing:1px;
+}
+.pill-gold{background:rgba(245,197,24,.1);border:1px solid rgba(245,197,24,.3);color:var(--gold)}
+.pill-red{background:rgba(232,50,74,.1);border:1px solid rgba(232,50,74,.3);color:var(--red2)}
+.pill-blue{background:rgba(59,139,255,.1);border:1px solid rgba(59,139,255,.3);color:var(--blue2)}
+.pill-green{background:rgba(30,217,128,.1);border:1px solid rgba(30,217,128,.3);color:var(--green2)}
+
+/* ── MAIN CONTAINER ── */
+main{max-width:1300px;margin:0 auto;padding:2rem 1.5rem 4rem}
+
+/* ── SECTION HEADER ── */
+.sec-hd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem}
+.sec-title{font-family:var(--ff);font-size:22px;color:var(--gold);letter-spacing:1px}
+.sec-title .dim{color:var(--text3);font-size:16px;margin-left:.5rem;font-family:var(--fs);font-weight:400}
+
+/* ── BUTTONS ── */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--fs);font-weight:700;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;
+  padding:9px 20px;border:none;border-radius:6px;cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.btn-gold{background:var(--gold);color:#07080D;box-shadow:0 4px 16px rgba(245,197,24,.3)}.btn-gold:hover{background:var(--gold2);transform:translateY(-2px)}
+.btn-outline{background:transparent;color:var(--blue2);border:1.5px solid var(--blue)}.btn-outline:hover{background:rgba(59,139,255,.1);transform:translateY(-2px)}
+.btn-red{background:transparent;color:var(--red2);border:1.5px solid var(--red)}.btn-red:hover{background:rgba(232,50,74,.1);transform:translateY(-2px)}
+.btn-green{background:rgba(30,217,128,.1);color:var(--green2);border:1.5px solid var(--green)}.btn-green:hover{background:rgba(30,217,128,.2);transform:translateY(-2px)}
+.btn-sm{padding:5px 12px;font-size:11px}
+.btn-xs{padding:3px 8px;font-size:10px;letter-spacing:.5px}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
+
+/* ── ALERTS ── */
+.alert{padding:10px 14px;border-radius:6px;font-size:13px;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:8px;animation:fadein .2s ease;line-height:1.5}
+@keyframes fadein{from{opacity:0;transform:translateY(-4px)}to{opacity:1}}
+.alert-error{background:rgba(232,50,74,.1);border:1px solid rgba(232,50,74,.3);color:var(--red2)}
+.alert-success{background:rgba(30,217,128,.1);border:1px solid rgba(30,217,128,.3);color:var(--green2)}
+.alert-info{background:rgba(59,139,255,.1);border:1px solid rgba(59,139,255,.3);color:var(--blue2)}
+.alert-warn{background:rgba(245,197,24,.08);border:1px solid rgba(245,197,24,.25);color:var(--gold)}
+
+/* ── ADMIN LOGIN ── */
+#adminLogin{
+  max-width:380px;margin:3rem auto;
+  background:var(--bg3);border:1px solid var(--border2);border-radius:12px;
+  padding:2rem;position:relative;overflow:hidden;
+}
+#adminLogin::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--gold),var(--red),var(--blue))}
+.adm-icon{font-size:2.5rem;text-align:center;margin-bottom:1rem}
+.adm-title{font-family:var(--ff);font-size:1.3rem;color:var(--gold);text-align:center;margin-bottom:.3rem}
+.adm-sub{color:var(--text2);font-size:13px;text-align:center;margin-bottom:1.5rem;line-height:1.5}
+.form-grp{display:flex;flex-direction:column;gap:5px;margin-bottom:1rem}
+.form-grp label{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3)}
+.form-grp input{
+  background:var(--bg4);border:1.5px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:var(--fs);font-size:14px;font-weight:600;
+  padding:9px 13px;outline:none;width:100%;transition:border-color .2s;
+}
+.form-grp input:focus{border-color:var(--gold)}
+
+/* ── STANDINGS TABLE ── */
+.standings{
+  background:var(--bg3);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:2rem;
+}
+.standings table{width:100%;border-collapse:collapse}
+.standings th{
+  background:var(--bg4);padding:10px 14px;text-align:left;
+  font-family:var(--fm);font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--text3);border-bottom:1px solid var(--border);
+}
+.standings td{padding:10px 14px;border-bottom:1px solid rgba(37,40,64,.6);font-size:14px;font-weight:600;vertical-align:middle}
+.standings tr:last-child td{border-bottom:none}
+.standings tr:hover td{background:rgba(255,255,255,.015)}
+.pos-badge{
+  width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--ff);font-size:13px;font-weight:900;flex-shrink:0;
+}
+.pos-1{background:linear-gradient(135deg,var(--gold),#C8960C);color:#07080D;box-shadow:0 0 12px rgba(245,197,24,.5)}
+.pos-2{background:linear-gradient(135deg,#C0C0C0,#888);color:#07080D}
+.pos-3{background:linear-gradient(135deg,#CD7F32,#8B4513);color:#fff}
+.pos-n{background:var(--bg4);color:var(--text3);border:1px solid var(--border)}
+.trainer-name-cell{display:flex;align-items:center;gap:10px}
+.trainer-avatar{
+  width:34px;height:34px;border-radius:50%;
+  background:linear-gradient(135deg,rgba(245,197,24,.3),rgba(232,50,74,.2));
+  display:flex;align-items:center;justify-content:center;font-size:1rem;
+  border:1px solid rgba(245,197,24,.2);flex-shrink:0;
+}
+.stat-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:20px;font-family:var(--fm);font-size:11px;
+}
+.sc-win{background:var(--win-bg);border:1px solid var(--win-border);color:var(--green2)}
+.sc-loss{background:var(--lose-bg);border:1px solid var(--lose-border);color:var(--red2)}
+.sc-game{background:rgba(59,139,255,.1);border:1px solid rgba(59,139,255,.25);color:var(--blue2)}
+
+/* ── ROUND TABS ── */
+.round-tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
+.rtab{
+  font-family:var(--fs);font-weight:700;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+  padding:7px 16px;border-radius:6px;border:1.5px solid var(--border);
+  background:transparent;color:var(--text3);cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.rtab:hover{border-color:var(--gold);color:var(--gold)}
+.rtab.active{background:rgba(245,197,24,.1);border-color:var(--gold);color:var(--gold);box-shadow:0 0 12px rgba(245,197,24,.15)}
+.rtab.done{border-color:var(--green);color:var(--green2)}
+.rtab.done.active{background:rgba(30,217,128,.1)}
+
+/* ── MATCH CARDS ── */
+.matches-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:1.25rem}
+@media(max-width:500px){.matches-grid{grid-template-columns:1fr}}
+.match-card{
+  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;transition:border-color .25s,box-shadow .25s;
+  animation:card-in .3s ease both;
+}
+@keyframes card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.match-card:hover{border-color:var(--border2);box-shadow:0 8px 28px rgba(0,0,0,.4)}
+.match-card.settled-win-a{border-color:var(--win-border);background:linear-gradient(135deg,var(--win-bg),var(--bg3))}
+.match-card.settled-win-b{border-color:var(--win-border);background:linear-gradient(225deg,var(--win-bg),var(--bg3))}
+.mc-head{
+  background:var(--bg4);padding:7px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+}
+.mc-id{font-family:var(--fm);font-size:10px;color:var(--text3);letter-spacing:2px}
+.mc-status{
+  font-family:var(--fm);font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  padding:2px 8px;border-radius:20px;
+}
+.mc-status.pending{background:rgba(245,197,24,.08);border:1px solid rgba(245,197,24,.2);color:var(--gold)}
+.mc-status.done{background:var(--win-bg);border:1px solid var(--win-border);color:var(--green2)}
+.mc-body{display:grid;grid-template-columns:1fr auto 1fr;gap:.5rem;padding:1rem 1.2rem;align-items:center}
+.mc-player{display:flex;flex-direction:column;gap:.4rem}
+.mc-player-a{align-items:flex-start}.mc-player-b{align-items:flex-end}
+.mc-name{
+  font-family:var(--fs);font-weight:900;font-size:18px;letter-spacing:.5px;
+  transition:color .25s;
+}
+.mc-name.winner{color:var(--green2);text-shadow:0 0 12px rgba(30,217,128,.3)}
+.mc-name.loser{color:var(--red2);opacity:.6}
+.mc-meta{font-family:var(--fm);font-size:10px;color:var(--text3)}
+.mc-pokemon{display:flex;gap:3px;flex-wrap:wrap}
+.mc-pokemon-b{justify-content:flex-end}
+.mc-mon{
+  width:28px;height:28px;border-radius:5px;
+  background:var(--bg4);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;
+}
+.mc-mon img{width:26px;height:26px;object-fit:contain}
+.mc-mon.sh img{filter:brightness(.45) saturate(.1) hue-rotate(260deg)}
+.mc-mon.locked{opacity:.4;font-size:10px}
+.mc-vs{
+  display:flex;flex-direction:column;align-items:center;gap:.3rem;
+  font-family:var(--ff);font-size:11px;color:var(--text3);
+}
+.mc-vs-txt{font-size:16px;color:var(--text3)}
+.mc-score-display{
+  display:flex;align-items:center;gap:.4rem;
+  font-family:var(--ff);font-size:22px;
+}
+.mc-score-a,.mc-score-b{
+  width:32px;height:32px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+}
+.mc-score-a{background:rgba(245,197,24,.08);color:var(--gold);border:1px solid rgba(245,197,24,.2)}
+.mc-score-b{background:rgba(59,139,255,.08);color:var(--blue2);border:1px solid rgba(59,139,255,.2)}
+.mc-score-sep{color:var(--text3);font-size:14px;font-family:var(--fm)}
+.mc-score-a.winning{background:var(--win-bg);color:var(--green2);border-color:var(--win-border);box-shadow:0 0 10px rgba(30,217,128,.2)}
+.mc-score-b.winning{background:var(--win-bg);color:var(--green2);border-color:var(--win-border);box-shadow:0 0 10px rgba(30,217,128,.2)}
+
+/* WIN CONTROLS */
+.mc-controls{
+  padding:.8rem 1.2rem;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:.75rem;
+  background:rgba(0,0,0,.2);flex-wrap:wrap;
+}
+.ctrl-label{font-family:var(--fm);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;white-space:nowrap}
+.win-btns{display:flex;gap:.4rem;flex-wrap:wrap}
+.wbtn{
+  font-family:var(--fs);font-weight:700;font-size:11px;letter-spacing:1px;
+  padding:4px 10px;border-radius:4px;cursor:pointer;border:1.5px solid;transition:all .15s;text-transform:uppercase;
+}
+.wbtn-a{color:var(--gold);border-color:rgba(245,197,24,.3);background:transparent}.wbtn-a:hover{background:rgba(245,197,24,.1)}
+.wbtn-b{color:var(--blue2);border-color:rgba(59,139,255,.3);background:transparent}.wbtn-b:hover{background:rgba(59,139,255,.1)}
+.wbtn-reset{color:var(--text3);border-color:var(--border);background:transparent}.wbtn-reset:hover{color:var(--red2);border-color:var(--red)}
+
+/* ── POKEMON TEAM PANEL (post-reveal) ── */
+.team-panel{
+  display:flex;gap:4px;flex-wrap:wrap;
+}
+.tp-mon{
+  width:36px;height:36px;background:var(--bg4);border:1px solid var(--border);
+  border-radius:6px;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;position:relative;cursor:default;transition:transform .15s;
+}
+.tp-mon:hover{transform:scale(1.12)}
+.tp-mon img{width:32px;height:32px;object-fit:contain}
+.tp-mon.sh img{filter:brightness(.45) saturate(.1) hue-rotate(260deg)}
+.tp-mon.sh{border-color:rgba(168,85,247,.35)}
+
+/* ── GENERATE PANEL ── */
+#generatePanel{
+  background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:1.5rem;
+  margin-bottom:2rem;position:relative;overflow:hidden;
+}
+#generatePanel::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),var(--red),var(--blue))}
+.gen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:1rem}
+.gen-stat{background:var(--bg4);border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center}
+.gen-stat-n{font-family:var(--ff);font-size:2rem;color:var(--gold);text-shadow:0 0 14px rgba(245,197,24,.3);display:block}
+.gen-stat-l{font-family:var(--fm);font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-top:.2rem}
+.gen-actions{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+.danger-zone{
+  margin-top:1rem;padding:1rem;border-radius:8px;
+  background:rgba(232,50,74,.05);border:1px solid rgba(232,50,74,.2);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+}
+.dz-text{font-size:13px;color:var(--red2);font-weight:600}
+
+/* ── LOADING / EMPTY ── */
+.loading{text-align:center;padding:3rem;color:var(--text3);font-family:var(--fm);font-size:11px;letter-spacing:2px;animation:blink2 1.4s ease-in-out infinite}
+@keyframes blink2{0%,100%{opacity:.3}50%{opacity:1}}
+.empty-state{text-align:center;padding:4rem 2rem;color:var(--text3)}
+.empty-state .big{font-size:3.5rem;margin-bottom:1rem}
+.empty-state p{font-family:var(--fm);font-size:11px;letter-spacing:2px;line-height:2.5}
+
+/* ── TOOLTIP ── */
+.tip{position:relative}
+.tip::after{
+  content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--bg4);border:1px solid var(--border2);border-radius:5px;
+  padding:4px 8px;font-family:var(--fm);font-size:10px;color:var(--text2);
+  white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:50;
+}
+.tip:hover::after{opacity:1}
+
+/* ── POKEMON TOOLTIP ── */
+.mon-tip-wrap{position:relative}
+.mon-tip-box{
+  display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:var(--bg4);border:1px solid var(--border2);border-radius:8px;
+  padding:6px 10px;font-family:var(--fs);font-size:12px;font-weight:700;color:var(--text);
+  white-space:nowrap;z-index:100;pointer-events:none;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.mon-tip-wrap:hover .mon-tip-box{display:block}
+
+/* ── REVEAL COUNTDOWN in bracket ── */
+.reveal-banner{
+  background:linear-gradient(135deg,rgba(245,197,24,.08),rgba(232,50,74,.05));
+  border:1px solid rgba(245,197,24,.25);border-radius:10px;
+  padding:1.2rem 1.5rem;margin-bottom:1.5rem;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+}
+.rb-left .rb-title{font-family:var(--fm);font-size:10px;letter-spacing:3px;color:var(--gold);text-transform:uppercase}
+.rb-left .rb-sub{font-size:13px;color:var(--text2);margin-top:4px;font-weight:600}
+.rb-clock{display:flex;gap:.6rem;align-items:center}
+.rb-unit{text-align:center}
+.rb-num{font-family:var(--ff);font-size:20px;color:var(--red);text-shadow:0 0 10px var(--red);display:block;line-height:1}
+.rb-sep{font-family:var(--ff);font-size:18px;color:var(--border2);margin-bottom:18px}
+.rb-lbl{font-family:var(--fm);font-size:8px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;display:block;margin-top:3px}
+
+/* ── PARTICIPANT LIST ── */
+.parti-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.75rem;margin-bottom:1.5rem}
+.parti-card{
+  background:var(--bg4);border:1px solid var(--border);border-radius:8px;
+  padding:.75rem 1rem;display:flex;align-items:center;gap:.75rem;transition:border-color .2s;
+}
+.parti-card:hover{border-color:var(--border2)}
+.parti-num{font-family:var(--ff);font-size:11px;color:var(--text3);min-width:20px}
+.parti-info{flex:1;overflow:hidden}
+.parti-name{font-weight:900;font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.parti-meta{font-family:var(--fm);font-size:10px;color:var(--text3);margin-top:2px}
+
+/* ── MODAL ── */
+.modal-over{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:2000;align-items:center;justify-content:center;padding:1rem}
+.modal-over.open{display:flex}
+.modal-box{background:var(--bg3);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:420px;overflow:hidden;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.7)}
+.modal-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--gold),var(--red))}
+.modal-hd{padding:1.2rem 1.5rem .8rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.modal-title{font-family:var(--ff);font-size:1.1rem;color:var(--gold)}
+.modal-close{background:none;border:none;color:var(--text3);font-size:1.3rem;cursor:pointer;padding:0 4px;line-height:1;transition:color .2s}.modal-close:hover{color:var(--red2)}
+.modal-body{padding:1.4rem 1.5rem 1.5rem}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── TOGGLE ── */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.75rem 0;border-bottom:1px solid var(--border)}
+.toggle-row:last-child{border-bottom:none}
+.toggle-label{font-size:13px;font-weight:600;color:var(--text2)}
+.tog-sw{position:relative;width:44px;height:22px;flex-shrink:0}
+.tog-sw input{opacity:0;width:0;height:0;position:absolute}
+.tog-track{position:absolute;inset:0;background:var(--bg4);border:1.5px solid var(--border);border-radius:11px;cursor:pointer;transition:all .28s}
+.tog-track::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:var(--text3);top:2px;left:2px;transition:all .28s}
+.tog-sw input:checked+.tog-track{background:rgba(30,217,128,.2);border-color:var(--green)}
+.tog-sw input:checked+.tog-track::after{transform:translateX(22px);background:var(--green2)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:600px){
+  .mc-body{grid-template-columns:1fr auto 1fr;gap:.25rem}
+  .mc-name{font-size:14px}
+  .matches-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">⚡<span>PPvPL</span> 2026 — BRACKET</div>
+  <div class="nav-status">
+    <span class="status-dot" id="fbDot"></span>
+    <span id="fbStatus">Connecting...</span>
+  </div>
+  <button class="nav-toggle" id="navToggle">☰</button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="#standings">Standings</a></li>
+    <li><a href="#rounds">Rounds</a></li>
+    <li><a href="#admin-section">Admin</a></li>
+    <li><a href="ppl2026-firebase.html" class="back">← Main Site</a></li>
+    <li><a href="index.html" class="back">← Home</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero-band">
+  <span class="hero-tag">⚡ Palakkad PvP League 2026</span>
+  <h1 class="hero-title"><span class="accent">TOURNAMENT</span> <span class="accent2">BRACKET</span></h1>
+  <p class="hero-sub">Round Robin · Best of 3 · Full Schedule</p>
+  <div class="hero-pills">
+    <span class="pill pill-gold" id="heroParti">— Participants</span>
+    <span class="pill pill-red" id="heroMatches">— Matches</span>
+    <span class="pill pill-blue" id="heroRounds">— Rounds</span>
+    <span class="pill pill-green" id="heroDone">— Completed</span>
+  </div>
+</div>
+
+<main>
+
+<!-- REVEAL COUNTDOWN -->
+<div class="reveal-banner" id="revealBanner">
+  <div class="rb-left">
+    <div class="rb-title">⏳ Teams Revealed in</div>
+    <div class="rb-sub" id="revealSub">Pokémon teams hidden until March 22, 2026</div>
+  </div>
+  <div class="rb-clock">
+    <div class="rb-unit"><span class="rb-num" id="rbD">--</span><span class="rb-lbl">Days</span></div>
+    <div class="rb-sep">:</div>
+    <div class="rb-unit"><span class="rb-num" id="rbH">--</span><span class="rb-lbl">Hours</span></div>
+    <div class="rb-sep">:</div>
+    <div class="rb-unit"><span class="rb-num" id="rbM">--</span><span class="rb-lbl">Mins</span></div>
+    <div class="rb-sep">:</div>
+    <div class="rb-unit"><span class="rb-num" id="rbS">--</span><span class="rb-lbl">Secs</span></div>
+  </div>
+</div>
+
+<!-- STANDINGS -->
+<section id="standings">
+  <div class="sec-hd">
+    <div class="sec-title">🏆 Standings <span class="dim">— Live Rankings</span></div>
+  </div>
+  <div class="standings" id="standingsTable">
+    <div class="loading">⏳ Loading standings...</div>
+  </div>
+</section>
+
+<!-- ROUNDS -->
+<section id="rounds" style="margin-top:2.5rem">
+  <div class="sec-hd">
+    <div class="sec-title">⚔️ Match Schedule <span class="dim" id="roundsSubtitle"></span></div>
+  </div>
+  <div id="roundTabsWrap" style="display:none">
+    <div class="round-tabs" id="roundTabs"></div>
+    <div id="roundContent"><div class="loading">Loading matches...</div></div>
+  </div>
+  <div id="noRoundsMsg" class="empty-state">
+    <div class="big">📋</div>
+    <p>No bracket generated yet.<br>Admin must generate the bracket<br>after all trainers have registered.</p>
+  </div>
+</section>
+
+<!-- ADMIN -->
+<section id="admin-section" style="margin-top:3rem">
+  <div class="sec-hd"><div class="sec-title">🔐 Admin Panel</div></div>
+
+  <!-- Admin Login -->
+  <div id="adminLogin">
+    <div class="adm-icon">🛡️</div>
+    <div class="adm-title">Admin Access</div>
+    <div class="adm-sub">Tournament organiser login to generate and manage the bracket.</div>
+    <div class="form-grp">
+      <label>Password</label>
+      <input type="password" id="admPw" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')admLogin()">
+    </div>
+    <button class="btn btn-gold" onclick="admLogin()" style="width:100%;justify-content:center">🔐 Login</button>
+    <div id="admPwErr" style="margin-top:.75rem"></div>
+  </div>
+
+  <!-- Admin Panel (hidden until login) -->
+  <div id="admPanel" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem">
+      <span style="font-family:var(--fm);font-size:11px;color:var(--green2);text-shadow:0 0 8px var(--green)">✅ ADMIN ACTIVE</span>
+      <button class="btn btn-red btn-sm" onclick="admLogout()">🚪 Logout</button>
+    </div>
+
+    <div id="generatePanel">
+      <div class="sec-hd" style="margin-bottom:1rem"><div class="sec-title">⚡ Bracket Generator</div></div>
+      <div class="gen-grid" id="genStats">
+        <div class="gen-stat"><span class="gen-stat-n" id="gStatP">0</span><span class="gen-stat-l">Participants</span></div>
+        <div class="gen-stat"><span class="gen-stat-n" id="gStatR">0</span><span class="gen-stat-l">Rounds</span></div>
+        <div class="gen-stat"><span class="gen-stat-n" id="gStatM">0</span><span class="gen-stat-l">Total Matches</span></div>
+        <div class="gen-stat"><span class="gen-stat-n" id="gStatD">0</span><span class="gen-stat-l">Completed</span></div>
+      </div>
+      <div id="participantPreview"></div>
+      <div class="gen-actions">
+        <button class="btn btn-gold" onclick="generateBracket()" id="genBtn">⚡ Generate Bracket</button>
+        <button class="btn btn-outline btn-sm" onclick="refreshFromFirebase()">🔄 Refresh Data</button>
+        <div id="genMsg" style="flex:1"></div>
+      </div>
+      <div class="danger-zone" id="dangerZone" style="display:none">
+        <div>
+          <div class="dz-text">⚠️ Danger Zone</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:3px">Resetting will erase all match results. This cannot be undone.</div>
+        </div>
+        <button class="btn btn-red btn-sm" onclick="resetBracket()">🗑️ Reset Bracket</button>
+      </div>
+    </div>
+
+    <div id="admMsg" style="margin-bottom:1rem"></div>
+  </div>
+</section>
+
+</main>
+
+<!-- EDIT MATCH MODAL -->
+<div class="modal-over" id="editMatchModal">
+  <div class="modal-box">
+    <div class="modal-hd">
+      <span class="modal-title">⚔️ Edit Match Score</span>
+      <button class="modal-close" onclick="closeMatchModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="editMatchInfo" style="margin-bottom:1.2rem"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem">
+        <div class="form-grp">
+          <label id="editLabelA">Player A Wins</label>
+          <input type="number" id="editWinA" min="0" max="3" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label id="editLabelB">Player B Wins</label>
+          <input type="number" id="editWinB" min="0" max="3" placeholder="0">
+        </div>
+      </div>
+      <div id="editMsg" style="margin-bottom:1rem"></div>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end">
+        <button class="btn btn-red btn-sm" onclick="closeMatchModal()">Cancel</button>
+        <button class="btn btn-gold btn-sm" onclick="saveMatchEdit()">💾 Save Score</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════
+const ADMIN_PW   = 'ppl2026admin'; // keep in sync with main site
+let REVEAL_DATE  = new Date('2026-03-22T00:00:00');
+let isAdmin      = false;
+let bracketData  = null;   // { participants, rounds, generatedAt }
+let trainersData = [];
+let currentRound = 0;
+let editTarget   = null;   // { roundIdx, matchIdx }
+
+// ══════════════════════════════════════════════════════
+// SPRITE
+// ══════════════════════════════════════════════════════
+function sprUrl(id,att){
+  const n=parseInt(String(id),10)||1;
+  if(att===0) return `https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/${n}.png`;
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${n}.png`;
+}
+function mkMonImg(id,shadow){
+  const img=document.createElement('img');
+  img.width=32;img.height=32;
+  img.style.cssText='width:32px;height:32px;object-fit:contain;display:block';
+  if(shadow) img.style.filter='brightness(.45) saturate(.1) hue-rotate(260deg)';
+  img.alt=String(id);
+  let att=0;
+  img.onerror=function(){ att++; if(att<=1) img.src=sprUrl(id,att); else img.onerror=null; };
+  img.onload=function(){};
+  img.src=sprUrl(id,0);
+  return img;
+}
+function mkMonImgHtml(id,shadow){
+  const sf=shadow?'filter:brightness(.45) saturate(.1) hue-rotate(260deg);':'';
+  return `<img src="${sprUrl(id,0)}" width="32" height="32" style="width:32px;height:32px;object-fit:contain;display:block;${sf}" onerror="this.dataset.att=(this.dataset.att|0)+1;if(this.dataset.att<=1)this.src='${sprUrl(id,1)}';" loading="lazy" alt="${id}">`;
+}
+
+// ══════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function gval(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
+function pad(n){ return String(Math.max(0,n)).padStart(2,'0'); }
+function isRevealed(){ return new Date()>=REVEAL_DATE; }
+function showAlert(id,msg,type){ const e=document.getElementById(id); if(e) e.innerHTML=`<div class="alert alert-${type}">${msg}</div>`; }
+
+function waitFb(){
+  return new Promise(res=>{
+    if(window._fb2ready&&window._fb2) return res(window._fb2);
+    document.addEventListener('fb2Ready',()=>res(window._fb2),{once:true});
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// COUNTDOWN
+// ══════════════════════════════════════════════════════
+function tickCD(){
+  const diff=REVEAL_DATE-new Date();
+  if(diff<=0){
+    ['rbD','rbH','rbM','rbS'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='00';});
+    const b=document.getElementById('revealBanner');
+    if(b) b.style.background='linear-gradient(135deg,rgba(30,217,128,.08),rgba(30,217,128,.04))';
+    const s=document.getElementById('revealSub');
+    if(s) s.textContent='🎉 Pokémon teams are now revealed!';
+    return;
+  }
+  const d=Math.floor(diff/86400000),h=Math.floor(diff%86400000/3600000),m=Math.floor(diff%3600000/60000),s=Math.floor(diff%60000/1000);
+  document.getElementById('rbD').textContent=pad(d);
+  document.getElementById('rbH').textContent=pad(h);
+  document.getElementById('rbM').textContent=pad(m);
+  document.getElementById('rbS').textContent=pad(s);
+}
+
+// ══════════════════════════════════════════════════════
+// ROUND ROBIN GENERATOR
+// Each player faces every other player exactly once.
+// For N players: N-1 rounds if N is even, N rounds if odd.
+// Uses the circle/polygon rotation algorithm.
+// ══════════════════════════════════════════════════════
+function generateRoundRobin(players){
+  const n = players.length;
+  if(n < 2) return [];
+
+  let list = [...players];
+  let bye   = null;
+  if(n % 2 !== 0){
+    bye = {_key:'BYE', trainer:{name:'BYE', level:0, code:''}};
+    list = [...list, bye];
+  }
+  const N = list.length; // always even now
+  const rounds = [];
+
+  for(let r = 0; r < N-1; r++){
+    const round = [];
+    for(let i = 0; i < N/2; i++){
+      const a = list[i];
+      const b = list[N-1-i];
+      if(a._key!=='BYE' && b._key!=='BYE'){
+        round.push({
+          id: `R${r+1}M${i+1}`,
+          playerA: { key:a._key, name:a.trainer.name, level:a.trainer.level },
+          playerB: { key:b._key, name:b.trainer.name, level:b.trainer.level },
+          winA: 0, winB: 0,
+          done: false
+        });
+      }
+    }
+    if(round.length) rounds.push(round);
+    // Rotate: keep list[0] fixed, rotate rest
+    const last = list[N-1];
+    for(let i = N-1; i > 1; i--) list[i] = list[i-1];
+    list[1] = last;
+  }
+  return rounds;
+}
+
+// ══════════════════════════════════════════════════════
+// STANDINGS CALCULATOR
+// Match win = you won ≥ 2 games in best-of-3
+// ══════════════════════════════════════════════════════
+function calcStandings(participants, rounds){
+  const map = {};
+  participants.forEach(p=>{
+    map[p.key] = { key:p.key, name:p.name, level:p.level, matchWins:0, matchLoss:0, gameWins:0, gameLoss:0, played:0 };
+  });
+
+  rounds.forEach(round=>{
+    round.forEach(match=>{
+      const wA=match.winA||0, wB=match.winB||0;
+      if(!map[match.playerA.key]||!map[match.playerB.key]) return;
+      if(wA===0&&wB===0) return; // unplayed
+      map[match.playerA.key].gameWins  += wA;
+      map[match.playerA.key].gameLoss  += wB;
+      map[match.playerB.key].gameWins  += wB;
+      map[match.playerB.key].gameLoss  += wA;
+
+      if(wA>0||wB>0){
+        map[match.playerA.key].played++;
+        map[match.playerB.key].played++;
+      }
+      if(wA>=2){ map[match.playerA.key].matchWins++; map[match.playerB.key].matchLoss++; }
+      else if(wB>=2){ map[match.playerB.key].matchWins++; map[match.playerA.key].matchLoss++; }
+    });
+  });
+
+  return Object.values(map).sort((a,b)=>{
+    if(b.matchWins!==a.matchWins) return b.matchWins-a.matchWins;
+    return b.gameWins-a.gameWins;
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// RENDER STANDINGS
+// ══════════════════════════════════════════════════════
+function renderStandings(){
+  const wrap=document.getElementById('standingsTable');
+  if(!bracketData||!bracketData.participants||!bracketData.rounds){
+    wrap.innerHTML='<div class="loading">⏳ No bracket yet — generate one from the Admin panel.</div>';
+    return;
+  }
+  const standings = calcStandings(bracketData.participants, bracketData.rounds);
+  const rev = isRevealed();
+
+  const positions = ['pos-1','pos-2','pos-3'];
+  let rows = standings.map((p,i)=>{
+    const pos = i < 3 ? positions[i] : 'pos-n';
+    const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    // Find team
+    const tr = trainersData.find(t=>t._key===p.key);
+    const team = tr?.team||[];
+    const teamHtml = team.length===6 && rev
+      ? `<div class="team-panel">${team.map(mon=>`
+          <div class="mon-tip-wrap">
+            <div class="tp-mon${mon.shadow?' sh':''}">
+              ${mkMonImgHtml(mon.id,mon.shadow)}
+            </div>
+            <div class="mon-tip-box">${esc(mon.name)}${mon.shadow?' 🌑':''}</div>
+          </div>`).join('')}</div>`
+      : rev
+        ? `<span style="font-family:var(--fm);font-size:10px;color:var(--text3)">No team</span>`
+        : `<span style="font-family:var(--fm);font-size:10px;color:var(--text3)">🔒 Hidden</span>`;
+
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        <div class="pos-badge ${pos}">${medal||i+1}</div>
+      </div></td>
+      <td><div class="trainer-name-cell">
+        <div class="trainer-avatar">${i===0?'👑':'🎮'}</div>
+        <div>
+          <div style="font-weight:900;font-size:15px">${esc(p.name)}</div>
+          <div style="font-family:var(--fm);font-size:10px;color:var(--text3)">Lv.${esc(String(p.level))}</div>
+        </div>
+      </div></td>
+      <td>${teamHtml}</td>
+      <td><span class="stat-chip sc-win">🏆 ${p.matchWins}</span></td>
+      <td><span class="stat-chip sc-loss">💀 ${p.matchLoss}</span></td>
+      <td><span class="stat-chip sc-game">🎮 ${p.gameWins}–${p.gameLoss}</span></td>
+      <td><span style="font-family:var(--fm);font-size:12px;color:var(--text3)">${p.played} played</span></td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML=`<table>
+    <thead><tr>
+      <th>Pos</th><th>Trainer</th><th>Team</th>
+      <th>Match W</th><th>Match L</th><th>Game W–L</th><th>Played</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ══════════════════════════════════════════════════════
+// RENDER ROUNDS
+// ══════════════════════════════════════════════════════
+function renderRounds(){
+  const tabWrap  = document.getElementById('roundTabsWrap');
+  const noMsg    = document.getElementById('noRoundsMsg');
+  if(!bracketData||!bracketData.rounds||!bracketData.rounds.length){
+    tabWrap.style.display='none';
+    noMsg.style.display='block';
+    return;
+  }
+  tabWrap.style.display='block';
+  noMsg.style.display='none';
+
+  const rounds = bracketData.rounds;
+  document.getElementById('roundsSubtitle').textContent=`— ${rounds.length} Round${rounds.length!==1?'s':''}`;
+
+  // Check if round is fully done
+  const isDone = r => r.every(m=>m.done);
+
+  // Tabs
+  const tabsEl = document.getElementById('roundTabs');
+  tabsEl.innerHTML = rounds.map((r,i)=>{
+    const done = isDone(r);
+    return `<button class="rtab${done?' done':''}${i===currentRound?' active':''}" onclick="switchRound(${i})">
+      Round ${i+1}${done?' ✓':''}
+    </button>`;
+  }).join('');
+
+  renderRoundContent(currentRound);
+}
+
+function switchRound(idx){
+  currentRound=idx;
+  document.querySelectorAll('.rtab').forEach((t,i)=>{
+    t.classList.toggle('active',i===idx);
+  });
+  renderRoundContent(idx);
+}
+
+function renderRoundContent(idx){
+  const round = bracketData?.rounds?.[idx];
+  if(!round){ document.getElementById('roundContent').innerHTML=''; return; }
+  const rev = isRevealed();
+
+  const html = `<div class="matches-grid">${round.map((match,mi)=>{
+    const wA=match.winA||0, wB=match.winB||0;
+    const done=match.done;
+    const winnerA = done && wA>wB;
+    const winnerB = done && wB>wA;
+    let cardClass='match-card';
+    if(winnerA) cardClass+=' settled-win-a';
+    else if(winnerB) cardClass+=' settled-win-b';
+
+    // Teams
+    const trA = trainersData.find(t=>t._key===match.playerA.key);
+    const trB = trainersData.find(t=>t._key===match.playerB.key);
+    const teamA = trA?.team||[];
+    const teamB = trB?.team||[];
+
+    const teamHtmlA = rev && teamA.length===6
+      ? `<div class="mc-pokemon">${teamA.map(m=>`
+          <div class="mc-mon${m.shadow?' sh':''} mon-tip-wrap">
+            ${mkMonImgHtml(m.id,m.shadow)}
+            <div class="mon-tip-box">${esc(m.name)}${m.shadow?' 🌑':''}</div>
+          </div>`).join('')}</div>`
+      : `<div class="mc-pokemon"><div class="mc-mon locked" style="width:auto;padding:0 4px;font-family:var(--fm);font-size:9px;color:var(--text3)">🔒</div></div>`;
+
+    const teamHtmlB = rev && teamB.length===6
+      ? `<div class="mc-pokemon mc-pokemon-b">${teamB.map(m=>`
+          <div class="mc-mon${m.shadow?' sh':''} mon-tip-wrap">
+            ${mkMonImgHtml(m.id,m.shadow)}
+            <div class="mon-tip-box">${esc(m.name)}${m.shadow?' 🌑':''}</div>
+          </div>`).join('')}</div>`
+      : `<div class="mc-pokemon mc-pokemon-b"><div class="mc-mon locked" style="width:auto;padding:0 4px;font-family:var(--fm);font-size:9px;color:var(--text3)">🔒</div></div>`;
+
+    const scA_class = wA>wB&&done?'mc-score-a winning':'mc-score-a';
+    const scB_class = wB>wA&&done?'mc-score-b winning':'mc-score-b';
+
+    const adminControls = isAdmin ? `
+      <div class="mc-controls">
+        <span class="ctrl-label">Score:</span>
+        <div class="win-btns">
+          <button class="wbtn wbtn-a" onclick="quickScore(${idx},${mi},1,0)" title="${esc(match.playerA.name)} wins a game">+1 ${esc(match.playerA.name.split(' ')[0])}</button>
+          <button class="wbtn wbtn-b" onclick="quickScore(${idx},${mi},0,1)" title="${esc(match.playerB.name)} wins a game">+1 ${esc(match.playerB.name.split(' ')[0])}</button>
+          <button class="wbtn wbtn-reset" onclick="quickScore(${idx},${mi},'reset',0)">Reset</button>
+        </div>
+        <button class="btn btn-outline btn-xs" onclick="openMatchEdit(${idx},${mi})" style="margin-left:auto">✏️ Edit</button>
+      </div>` : `
+      <div class="mc-controls" style="justify-content:center;padding:.5rem 1.2rem">
+        <span style="font-family:var(--fm);font-size:10px;color:var(--text3)">${done?'✅ Match completed':'⏳ Pending'}</span>
+      </div>`;
+
+    return `<div class="${cardClass}" id="mc-${idx}-${mi}" style="animation-delay:${mi*.04}s">
+      <div class="mc-head">
+        <span class="mc-id">${esc(match.id)} · Bo3</span>
+        <span class="mc-status ${done?'done':'pending'}">${done?'DONE':'PENDING'}</span>
+      </div>
+      <div class="mc-body">
+        <div class="mc-player mc-player-a">
+          <div class="mc-name${winnerA?' winner':winnerB?' loser':''}">${esc(match.playerA.name)}</div>
+          <div class="mc-meta">Lv.${match.playerA.level}</div>
+          ${teamHtmlA}
+        </div>
+        <div class="mc-vs">
+          <span class="mc-vs-txt">VS</span>
+          <div class="mc-score-display">
+            <div class="${scA_class}">${wA}</div>
+            <span class="mc-score-sep">:</span>
+            <div class="${scB_class}">${wB}</div>
+          </div>
+        </div>
+        <div class="mc-player mc-player-b">
+          <div class="mc-name${winnerB?' winner':winnerA?' loser':''}" style="text-align:right">${esc(match.playerB.name)}</div>
+          <div class="mc-meta" style="text-align:right">Lv.${match.playerB.level}</div>
+          ${teamHtmlB}
+        </div>
+      </div>
+      ${adminControls}
+    </div>`;
+  }).join('')}</div>`;
+
+  document.getElementById('roundContent').innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════════
+// SCORE EDITING
+// ══════════════════════════════════════════════════════
+async function quickScore(ri,mi,addA,addB){
+  if(!bracketData) return;
+  const match = bracketData.rounds[ri][mi];
+  if(addA==='reset'){
+    match.winA=0; match.winB=0; match.done=false;
+  } else {
+    match.winA = Math.min(3, (match.winA||0)+addA);
+    match.winB = Math.min(3, (match.winB||0)+addB);
+    // Best of 3: first to 2 wins
+    match.done = (match.winA>=2||match.winB>=2);
+  }
+  await saveBracket();
+}
+
+function openMatchEdit(ri,mi){
+  editTarget={ri,mi};
+  const match=bracketData.rounds[ri][mi];
+  document.getElementById('editLabelA').textContent=`${match.playerA.name} Wins`;
+  document.getElementById('editLabelB').textContent=`${match.playerB.name} Wins`;
+  document.getElementById('editMatchInfo').innerHTML=`
+    <div style="text-align:center;font-family:var(--fm);font-size:12px;color:var(--text2);margin-bottom:.5rem">
+      Round ${ri+1} · ${esc(match.id)} · Best of 3
+    </div>
+    <div style="text-align:center;font-family:var(--ff);font-size:18px;color:var(--text)">
+      <span style="color:var(--gold)">${esc(match.playerA.name)}</span>
+      <span style="color:var(--text3);font-size:14px;margin:0 .5rem">vs</span>
+      <span style="color:var(--blue2)">${esc(match.playerB.name)}</span>
+    </div>`;
+  document.getElementById('editWinA').value=match.winA||0;
+  document.getElementById('editWinB').value=match.winB||0;
+  document.getElementById('editMsg').innerHTML='';
+  document.getElementById('editMatchModal').classList.add('open');
+}
+
+function closeMatchModal(){ document.getElementById('editMatchModal').classList.remove('open'); editTarget=null; }
+
+async function saveMatchEdit(){
+  if(!editTarget) return;
+  const wA=parseInt(document.getElementById('editWinA').value)||0;
+  const wB=parseInt(document.getElementById('editWinB').value)||0;
+  if(wA<0||wB<0||wA>3||wB>3){ showAlert('editMsg','⚠️ Wins must be between 0 and 3.','error'); return; }
+  if(wA===wB&&wA>=2){ showAlert('editMsg','⚠️ Cannot tie at 2+ wins in best-of-3.','error'); return; }
+  const match=bracketData.rounds[editTarget.ri][editTarget.mi];
+  match.winA=wA; match.winB=wB;
+  match.done=(wA>=2||wB>=2);
+  await saveBracket();
+  closeMatchModal();
+}
+
+// ══════════════════════════════════════════════════════
+// FIREBASE OPS
+// ══════════════════════════════════════════════════════
+async function saveBracket(){
+  const fb=await waitFb();
+  await fb.setBracket(bracketData);
+  renderStandings();
+  renderRounds();
+  updateHeroPills();
+  updateGenStats();
+}
+
+async function refreshFromFirebase(){
+  const fb=await waitFb();
+  trainersData=await fb.getTrainers();
+  bracketData=await fb.getBracket();
+  renderAll();
+  updateGenStats();
+}
+
+function renderAll(){
+  renderStandings();
+  renderRounds();
+  updateHeroPills();
+}
+
+// ══════════════════════════════════════════════════════
+// HERO PILLS
+// ══════════════════════════════════════════════════════
+function updateHeroPills(){
+  const p = bracketData?.participants?.length||0;
+  const r = bracketData?.rounds?.length||0;
+  const m = bracketData?.rounds?.reduce((a,rnd)=>a+rnd.length,0)||0;
+  const d = bracketData?.rounds?.reduce((a,rnd)=>a+rnd.filter(x=>x.done).length,0)||0;
+  document.getElementById('heroParti').textContent=`${p} Participants`;
+  document.getElementById('heroMatches').textContent=`${m} Matches`;
+  document.getElementById('heroRounds').textContent=`${r} Rounds`;
+  document.getElementById('heroDone').textContent=`${d} Completed`;
+}
+
+// ══════════════════════════════════════════════════════
+// ADMIN
+// ══════════════════════════════════════════════════════
+function admLogin(){
+  if(gval('admPw')===ADMIN_PW){
+    isAdmin=true;
+    document.getElementById('adminLogin').style.display='none';
+    document.getElementById('admPanel').style.display='block';
+    updateGenStats();
+    renderRounds(); // Re-render to show admin controls
+    showAlert('admMsg','✅ Admin logged in. You can now manage the bracket.','success');
+  } else {
+    showAlert('admPwErr','❌ Incorrect password.','error');
+  }
+}
+function admLogout(){
+  isAdmin=false;
+  document.getElementById('adminLogin').style.display='block';
+  document.getElementById('admPanel').style.display='none';
+  renderRounds();
+}
+
+function updateGenStats(){
+  // Filter trainers who have complete teams (or all registered)
+  const eligible = trainersData.filter(t=>t.trainer&&t.trainer.name);
+  document.getElementById('gStatP').textContent=eligible.length;
+  const r=eligible.length>1?eligible.length-1+(eligible.length%2!==0?1:0):0;
+  // Actually: N-1 rounds for even, N for odd — but since we count only non-BYE matches:
+  const rrounds = eligible.length>1 ? (eligible.length%2===0?eligible.length-1:eligible.length):0;
+  const mcount  = eligible.length>1 ? Math.floor(eligible.length*(eligible.length-1)/2) : 0;
+  document.getElementById('gStatR').textContent=rrounds;
+  document.getElementById('gStatM').textContent=mcount;
+  const d=bracketData?.rounds?.reduce((a,rnd)=>a+rnd.filter(x=>x.done).length,0)||0;
+  document.getElementById('gStatD').textContent=d;
+
+  // Show participant preview
+  const prev=document.getElementById('participantPreview');
+  if(eligible.length){
+    prev.innerHTML=`<div class="parti-grid" style="margin-bottom:1rem">${eligible.map((t,i)=>`
+      <div class="parti-card">
+        <div class="parti-num">${i+1}</div>
+        <div class="parti-info">
+          <div class="parti-name">${esc(t.trainer.name)}</div>
+          <div class="parti-meta">Lv.${t.trainer.level} · ${t.team?.length===6?'✅ Team':'⏳ No team'}</div>
+        </div>
+      </div>`).join('')}</div>`;
+  } else {
+    prev.innerHTML='<div class="alert alert-warn">⚠️ No trainers found. Make sure they have registered on the main site.</div>';
+  }
+
+  // Show danger zone only if bracket exists
+  document.getElementById('dangerZone').style.display=bracketData?'flex':'none';
+}
+
+async function generateBracket(){
+  const eligible = trainersData.filter(t=>t.trainer&&t.trainer.name);
+  if(eligible.length<2){ showAlert('genMsg','⚠️ Need at least 2 participants to generate a bracket.','error'); return; }
+  if(bracketData){ if(!confirm(`A bracket already exists with ${bracketData.rounds?.length||0} rounds. Generating a new one will ERASE all existing results. Continue?`)) return; }
+
+  const btn=document.getElementById('genBtn');
+  btn.disabled=true; btn.textContent='⏳ Generating...';
+
+  const participants=eligible.map(t=>({ key:t._key, name:t.trainer.name, level:t.trainer.level }));
+  // Shuffle for randomness
+  for(let i=participants.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [participants[i],participants[j]]=[participants[j],participants[i]]; }
+
+  const rounds=generateRoundRobin(participants.map(p=>({ _key:p.key, trainer:{ name:p.name, level:p.level } })));
+
+  bracketData={ participants, rounds, generatedAt:new Date().toISOString() };
+
+  try{
+    await saveBracket();
+    currentRound=0;
+    renderAll();
+    updateGenStats();
+    showAlert('genMsg',`✅ Bracket generated! ${rounds.length} rounds · ${rounds.reduce((a,r)=>a+r.length,0)} matches.`,'success');
+    document.getElementById('dangerZone').style.display='flex';
+  } catch(e){
+    showAlert('genMsg','❌ Failed to save bracket to Firebase: '+e.message,'error');
+  }
+  btn.disabled=false; btn.textContent='⚡ Generate Bracket';
+}
+
+async function resetBracket(){
+  if(!confirm('PERMANENTLY delete all bracket data including all match results?')) return;
+  if(!confirm('Are you absolutely sure? This cannot be undone!')) return;
+  const fb=await waitFb();
+  bracketData=null;
+  await fb.setBracket(null);
+  currentRound=0;
+  renderAll();
+  updateGenStats();
+  document.getElementById('dangerZone').style.display='none';
+  showAlert('admMsg','✅ Bracket reset.','success');
+}
+
+// ══════════════════════════════════════════════════════
+// NAV TOGGLE
+// ══════════════════════════════════════════════════════
+document.getElementById('navToggle').addEventListener('click',()=>document.getElementById('navLinks').classList.toggle('open'));
+document.querySelectorAll('.nav-links a').forEach(a=>a.addEventListener('click',()=>document.getElementById('navLinks').classList.remove('open')));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeMatchModal(); });
+document.getElementById('editMatchModal').addEventListener('click',e=>{ if(e.target===document.getElementById('editMatchModal')) closeMatchModal(); });
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async()=>{
+  tickCD(); setInterval(tickCD,1000);
+
+  const fb = await waitFb();
+
+  // FB connected
+  document.getElementById('fbDot').classList.add('live');
+  document.getElementById('fbStatus').textContent='Firebase Connected';
+
+  // Load settings (for reveal date)
+  try{
+    const s=await fb.getSettings();
+    if(s.startDate) REVEAL_DATE=new Date(s.startDate+'T00:00:00');
+  } catch(_){}
+
+  // Real-time listeners
+  fb.onTrainersChange(all=>{
+    trainersData=all;
+    renderStandings();
+    if(isAdmin) updateGenStats();
+  });
+
+  fb.onBracketChange(data=>{
+    bracketData=data;
+    renderAll();
+    if(isAdmin) updateGenStats();
+  });
+});
+</script>
+</body>
+</html>
