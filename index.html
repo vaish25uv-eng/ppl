@@ -5,85 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Palakkad PvP League 2026</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
-<!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import {
-    getDatabase, ref, set, get, update, remove, onValue, child
-  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-  // ── Firebase config ──────────────────────────────────
-  const firebaseConfig = {
-    databaseURL: "https://ppl2026-6c198-default-rtdb.firebaseio.com/"
-  };
-  const app = initializeApp(firebaseConfig);
-  const db  = getDatabase(app);
-
-  // ── Expose Firebase helpers to global scope ──────────
-  window._fb = {
-    async getAll() {
-      const snap = await get(ref(db, 'ppl2026'));
-      return snap.exists() ? snap.val() : { trainers: {}, settings: { startDate: '2026-03-22', hiddenEmails: [] } };
-    },
-    async getTrainers() {
-      const snap = await get(ref(db, 'ppl2026/trainers'));
-      if (!snap.exists()) return [];
-      const obj = snap.val();
-      return Object.entries(obj).map(([key, val]) => ({ ...val, _key: key }));
-    },
-    async getSettings() {
-      const snap = await get(ref(db, 'ppl2026/settings'));
-      return snap.exists() ? snap.val() : { startDate: '2026-03-22', hiddenEmails: [] };
-    },
-    async setSettings(s) {
-      await set(ref(db, 'ppl2026/settings'), s);
-    },
-    // key = email slug
-    async upsertTrainer(entry) {
-      const key = emailToKey(entry.trainer.email);
-      await set(ref(db, `ppl2026/trainers/${key}`), { ...entry, _key: key });
-    },
-    async deleteTrainer(key) {
-      await remove(ref(db, `ppl2026/trainers/${key}`));
-    },
-    onTrainersChange(cb) {
-      onValue(ref(db, 'ppl2026/trainers'), snap => {
-        const obj = snap.exists() ? snap.val() : {};
-        cb(Object.entries(obj).map(([key, val]) => ({ ...val, _key: key })));
-      });
-    },
-    onSettingsChange(cb) {
-      onValue(ref(db, 'ppl2026/settings'), snap => {
-        cb(snap.exists() ? snap.val() : { startDate: '2026-03-22', hiddenEmails: [] });
-      });
-    }
-  };
-
-  function emailToKey(email) {
-    return email.toLowerCase()
-      .replace(/[.#$\[\]@]/g, '_')
-      .replace(/[^a-z0-9_\-]/g, '');
-  }
-  window._emailToKey = emailToKey;
-
-  // Signal that Firebase is ready
-  window._fbReady = true;
-  document.dispatchEvent(new Event('fbReady'));
-</script>
 <style>
+/* ═══════════════════════════════════════════════
+   ROOT VARIABLES
+═══════════════════════════════════════════════ */
 :root{
-  --red:#FF1C1C;--red-dark:#C0000A;--yellow:#FFD700;--yellow-glow:#FFE44D;
-  --black:#0A0A0F;--surface:#111118;--surface2:#1A1A25;--surface3:#22222F;
-  --border:#2A2A3A;--border-bright:#3A3A55;--text:#E8E8F0;--text-dim:#8888A8;
-  --blue:#00C8FF;--purple:#9B30FF;--purple-glow:#C060FF;--green:#00FF88;--orange:#FF8800;
-  --fp:'Press Start 2P',monospace;--fh:'Exo 2',sans-serif;--fb:'Rajdhani',sans-serif;
+  --red:#FF1C1C; --red-dark:#C0000A; --yellow:#FFD700; --yellow-glow:#FFE44D;
+  --black:#0A0A0F; --surface:#111118; --surface2:#1A1A25; --surface3:#22222F;
+  --border:#2A2A3A; --border-bright:#3A3A55; --text:#E8E8F0; --text-dim:#8888A8;
+  --blue:#00C8FF; --purple:#9B30FF; --purple-glow:#C060FF; --green:#00FF88;
+  --orange:#FF8800;
+  --fp:'Press Start 2P',monospace; --fh:'Exo 2',sans-serif; --fb:'Rajdhani',sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{background:var(--black);color:var(--text);font-family:var(--fb);font-size:16px;overflow-x:hidden}
 body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);pointer-events:none;z-index:9998}
 
-/* NAV */
+/* ═══ NAV ═══ */
 nav{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(10,10,15,.97);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:62px;display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .nav-logo{font-family:var(--fp);font-size:7px;color:var(--yellow);text-shadow:0 0 10px var(--yellow);white-space:nowrap;line-height:1.6}
 .nav-logo .ppl{color:var(--red);text-shadow:0 0 12px var(--red);display:block;font-size:9px;letter-spacing:1px}
@@ -102,7 +41,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(10,10,15,.9
   .nav-links.open{display:flex}
 }
 
-/* LAYOUT */
+/* ═══ LAYOUT ═══ */
 section{min-height:100vh;padding:100px 1.5rem 80px;position:relative}
 .container{max-width:1100px;margin:0 auto}
 .section-header{text-align:center;margin-bottom:3rem}
@@ -110,7 +49,7 @@ section{min-height:100vh;padding:100px 1.5rem 80px;position:relative}
 .section-title{font-family:var(--fh);font-weight:800;font-size:clamp(1.8rem,3.5vw,2.8rem);letter-spacing:-.5px}
 .section-divider{width:80px;height:3px;margin:1rem auto 0;background:linear-gradient(90deg,transparent,var(--red),transparent)}
 
-/* HERO */
+/* ═══ HERO ═══ */
 #hero{display:flex;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(255,28,28,.13) 0%,transparent 70%),radial-gradient(ellipse 50% 50% at 20% 80%,rgba(0,200,255,.08) 0%,transparent 60%),var(--black);overflow:hidden}
 .hero-content{position:relative;z-index:2;padding:0 1rem}
 .pokeball-bg{position:absolute;width:700px;height:700px;border-radius:50%;border:3px solid rgba(255,28,28,.07);top:50%;left:50%;transform:translate(-50%,-50%);animation:spin-slow 40s linear infinite;pointer-events:none}
@@ -125,12 +64,7 @@ section{min-height:100vh;padding:100px 1.5rem 80px;position:relative}
 .hero-title .l1{color:var(--text)}.hero-title .l2{color:var(--yellow);text-shadow:0 0 28px rgba(255,215,0,.5);display:block}.hero-title .l3{color:var(--red);text-shadow:0 0 28px rgba(255,28,28,.5);display:block;font-size:.72em}
 .hero-desc{font-size:17px;color:var(--text-dim);max-width:520px;margin:0 auto 2.5rem;line-height:1.7}
 
-/* FIREBASE BADGE */
-.fb-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,136,0,.1);border:1px solid rgba(255,136,0,.3);border-radius:4px;padding:4px 12px;font-size:10px;font-weight:700;color:var(--orange);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:1.5rem}
-.fb-dot{width:6px;height:6px;border-radius:50%;background:var(--orange);animation:fb-pulse 2s ease-in-out infinite}
-@keyframes fb-pulse{0%,100%{opacity:.4;transform:scale(.9)}50%{opacity:1;transform:scale(1.2)}}
-
-/* BUTTONS */
+/* ═══ BUTTONS ═══ */
 .btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--fb);font-weight:700;font-size:14px;letter-spacing:1.5px;text-transform:uppercase;padding:13px 26px;border:none;border-radius:6px;cursor:pointer;transition:all .22s;text-decoration:none;white-space:nowrap}
 .btn-primary{background:var(--red);color:#fff;box-shadow:0 4px 18px rgba(255,28,28,.4)}.btn-primary:hover{background:#ff3232;transform:translateY(-2px)}
 .btn-yellow{background:var(--yellow);color:var(--black);box-shadow:0 4px 18px rgba(255,215,0,.35)}.btn-yellow:hover{background:var(--yellow-glow);transform:translateY(-2px)}
@@ -141,7 +75,7 @@ section{min-height:100vh;padding:100px 1.5rem 80px;position:relative}
 .btn-purple{background:rgba(155,48,255,.15);color:var(--purple-glow);border:1.5px solid var(--purple)}.btn-purple:hover{background:rgba(155,48,255,.25);transform:translateY(-2px)}
 .btn:disabled,.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none !important;pointer-events:none}
 
-/* ALERTS */
+/* ═══ ALERTS ═══ */
 .alert{padding:11px 16px;border-radius:6px;font-size:13px;font-weight:600;margin-bottom:1rem;display:flex;align-items:flex-start;gap:9px;animation:slide-in .28s ease;line-height:1.5}
 @keyframes slide-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 .alert-error{background:rgba(255,28,28,.1);border:1px solid rgba(255,28,28,.35);color:#ff7070}
@@ -149,7 +83,7 @@ section{min-height:100vh;padding:100px 1.5rem 80px;position:relative}
 .alert-info{background:rgba(0,200,255,.1);border:1px solid rgba(0,200,255,.3);color:var(--blue)}
 .alert-warn{background:rgba(255,136,0,.1);border:1px solid rgba(255,136,0,.35);color:var(--orange)}
 
-/* RULES */
+/* ═══ RULES ═══ */
 #rules{background:radial-gradient(ellipse 60% 50% at 80% 50%,rgba(0,200,255,.05) 0%,transparent 60%),var(--surface)}
 .rules-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem}
 .rule-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.75rem;position:relative;overflow:hidden;transition:all .3s}
@@ -159,7 +93,7 @@ section{min-height:100vh;padding:100px 1.5rem 80px;position:relative}
 .rule-title{font-family:var(--fh);font-weight:700;font-size:16px;color:var(--yellow);margin-bottom:.5rem}
 .rule-desc{font-size:15px;color:var(--text-dim);line-height:1.6}
 
-/* LOGIN GATE */
+/* ═══ LOGIN GATE ═══ */
 #loginGate{background:radial-gradient(ellipse 70% 60% at 50% 40%,rgba(0,200,255,.07) 0%,transparent 60%),var(--black)}
 .login-wrap{max-width:480px;margin:0 auto}
 .login-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:2.8rem;position:relative;overflow:hidden}
@@ -170,10 +104,11 @@ section{min-height:100vh;padding:100px 1.5rem 80px;position:relative}
 .login-tabs{display:flex;gap:.5rem;margin-bottom:1.5rem;background:var(--surface3);border-radius:8px;padding:4px}
 .ltab{flex:1;padding:8px;border:none;background:transparent;color:var(--text-dim);font-family:var(--fb);font-weight:700;font-size:13px;border-radius:6px;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px}
 .ltab.active{background:var(--surface2);color:var(--yellow);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.input-email{background:var(--surface3);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fb);font-size:15px;font-weight:500;padding:11px 15px;transition:all .2s;outline:none;width:100%}
 input[type=email]{background:var(--surface3);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fb);font-size:15px;font-weight:500;padding:11px 15px;transition:all .2s;outline:none;width:100%}
 input[type=email]:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,200,255,.1)}
 
-/* REGISTER / FORMS */
+/* ═══ REGISTER / BUILDER FORMS ═══ */
 #register{background:radial-gradient(ellipse 60% 50% at 20% 50%,rgba(155,48,255,.05) 0%,transparent 60%),var(--black)}
 .form-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2.5rem;max-width:640px;margin:0 auto;position:relative;overflow:hidden}
 .form-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--red),var(--yellow),var(--blue))}
@@ -182,12 +117,12 @@ input[type=email]:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,200
 label{font-family:var(--fb);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim)}
 input[type=text],input[type=number],input[type=password]{background:var(--surface3);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fb);font-size:15px;font-weight:500;padding:11px 15px;transition:all .2s;outline:none;width:100%}
 input[type=text]:focus,input[type=number]:focus,input[type=password]:focus{border-color:var(--yellow);box-shadow:0 0 0 3px rgba(255,215,0,.1)}
-input.is-err{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(255,28,28,.1)!important}
+input.is-err{border-color:var(--red) !important;box-shadow:0 0 0 3px rgba(255,28,28,.1) !important}
 .field-err{font-size:11px;color:var(--red);font-weight:600;min-height:16px;margin-top:2px}
 @media(max-width:600px){.form-grid{grid-template-columns:1fr}}
 .lock-banner{background:rgba(255,136,0,.08);border:1px solid rgba(255,136,0,.3);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:var(--orange);margin-bottom:1.5rem}
 
-/* BUILDER */
+/* ═══ BUILDER ═══ */
 #builder{background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(255,28,28,.07) 0%,transparent 60%),var(--surface)}
 .team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-bottom:2rem}
 @media(max-width:768px){.team-grid{grid-template-columns:repeat(2,1fr)}}
@@ -199,14 +134,17 @@ input.is-err{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(255,28,
 .slot-num{font-family:var(--fp);font-size:7px;color:var(--text-dim)}
 .slot-badge{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:20px;background:rgba(0,200,255,.1);color:var(--blue);border:1px solid rgba(0,200,255,.2);transition:all .3s}
 .slot-badge.shad{background:rgba(155,48,255,.15);color:var(--purple-glow);border-color:rgba(155,48,255,.3)}
+
+/* SPRITE RING */
 .sprite-ring{width:86px;height:86px;margin:0 auto .9rem;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;border:2px solid var(--border);transition:border-color .3s,box-shadow .3s;position:relative;overflow:hidden}
 .slot-card.shad .sprite-ring{border-color:var(--purple);box-shadow:0 0 14px rgba(155,48,255,.45)}
 .sprite-ring img{width:68px;height:68px;display:block;object-fit:contain;transition:filter .3s}
 .slot-card.shad .sprite-ring img{filter:brightness(.5) saturate(.15) hue-rotate(260deg) drop-shadow(0 0 8px rgba(155,48,255,.9))}
 .sprite-ring .sph{font-size:1.8rem;opacity:.15;user-select:none}
+.sprite-ring .sload{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;position:absolute}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* PICKER */
+/* CUSTOM PICKER */
 .picker-wrap{position:relative;margin-bottom:.9rem;z-index:10}
 .picker-btn{width:100%;background:var(--surface3);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fb);font-size:13.5px;font-weight:500;padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:border-color .2s,box-shadow .2s;text-align:left;min-height:42px;position:relative}
 .picker-btn:hover,.picker-btn.open{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,200,255,.1)}
@@ -242,8 +180,10 @@ input.is-err{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(255,28,
 .prog-fill{height:100%;background:linear-gradient(90deg,var(--red),var(--yellow));border-radius:2px;transition:width .4s ease;box-shadow:0 0 8px rgba(255,215,0,.4)}
 .prog-lbl{text-align:right;font-size:11px;font-weight:700;letter-spacing:1px;color:var(--yellow);margin-bottom:.5rem}
 .submit-area{text-align:center;margin-top:.5rem;display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap}
+@keyframes card-pop{0%,100%{transform:scale(1)}50%{transform:scale(1.025)}}
+.card-pop{animation:card-pop .28s ease}
 
-/* TRAINERS ROSTER */
+/* ═══ TRAINERS ROSTER ═══ */
 #trainers{background:radial-gradient(ellipse 60% 50% at 50% 100%,rgba(255,215,0,.05) 0%,transparent 60%),var(--surface)}
 .cd-banner{background:linear-gradient(135deg,rgba(255,215,0,.07),rgba(255,28,28,.07));border:1px solid rgba(255,215,0,.2);border-radius:10px;padding:1.2rem 1.8rem;margin-bottom:2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
 .cd-lbl{font-family:var(--fp);font-size:7.5px;color:var(--yellow);text-shadow:0 0 8px var(--yellow)}
@@ -274,6 +214,8 @@ input.is-err{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(255,28,
 .tc-stats{display:flex;gap:.9rem;margin-bottom:.9rem;flex-wrap:wrap}
 .tc-stat{font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim)}.tc-stat span{color:var(--blue);margin-left:4px}
 .tc-mine-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(0,200,255,.1);border:1px solid rgba(0,200,255,.25);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;color:var(--blue);letter-spacing:1px;text-transform:uppercase;margin-bottom:.7rem}
+
+/* TEAM DISPLAY IN CARD */
 .tc-team-section{border-top:1px solid var(--border);padding-top:.9rem}
 .tc-team-lbl{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:.7rem}
 .tc-pokemon-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
@@ -291,7 +233,7 @@ input.is-err{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(255,28,
 .loading-tr{text-align:center;padding:2rem;color:var(--text-dim);font-family:var(--fp);font-size:8px;animation:blink 1.4s ease-in-out infinite}
 @keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}
 
-/* PREVIEW */
+/* ═══ PREVIEW ═══ */
 #preview{background:radial-gradient(ellipse 60% 60% at 50% 50%,rgba(0,200,255,.05) 0%,transparent 70%),var(--black)}
 .pv-card{background:var(--surface2);border:1px solid var(--border-bright);border-radius:16px;overflow:hidden;max-width:820px;margin:0 auto;box-shadow:0 20px 55px rgba(0,0,0,.5);position:relative}
 .pv-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--red),var(--yellow),var(--blue),var(--purple))}
@@ -318,7 +260,7 @@ input.is-err{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(255,28,
 .pv-empty{text-align:center;padding:3rem;color:var(--text-dim)}.pv-empty p{font-family:var(--fp);font-size:8px;line-height:2;margin-top:1rem}
 .pv-actions{padding:1.4rem 2rem 1.8rem;display:flex;gap:.8rem;justify-content:center;border-top:1px solid var(--border);flex-wrap:wrap}
 
-/* ADMIN */
+/* ═══ ADMIN ═══ */
 #admin{background:radial-gradient(ellipse 60% 50% at 50% 50%,rgba(255,28,28,.05) 0%,transparent 60%),var(--surface)}
 .adm-login-card{background:var(--surface2);border:1px solid rgba(255,28,28,.28);border-radius:12px;padding:2.5rem;max-width:420px;margin:0 auto;text-align:center;position:relative;overflow:hidden}
 .adm-login-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--red),#ff7700)}
@@ -359,8 +301,11 @@ input.is-err{border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(255,28,
 .modal-x:hover{color:var(--red)}
 .modal-body{padding:1.4rem 1.8rem 1.8rem}
 
-img.poke-img{background:var(--surface3);border-radius:4px}
-img.poke-img.loaded{background:none}
+/* IMG loading shimmer */
+img.poke-img[src=""],img.poke-img:not([src]){background:var(--surface3)}
+img.poke-img{background:linear-gradient(90deg,var(--surface3) 25%,var(--surface2) 50%,var(--surface3) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:4px}
+img.poke-img.loaded,img.poke-img[src*="data:image"]{animation:none;background:none}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
 footer{background:var(--surface);border-top:1px solid var(--border);padding:1.8rem;text-align:center;color:var(--text-dim);font-size:13px}
 footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
@@ -368,7 +313,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
 </head>
 <body>
 
-<!-- NAV -->
+<!-- ════ NAV ════ -->
 <nav>
   <div class="nav-logo">
     <span class="ppl">⚡ PALAKKAD PvP LEAGUE</span>
@@ -386,10 +331,11 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
     <li><a href="#trainers">Roster</a></li>
     <li><a href="#preview">My Team</a></li>
     <li><a href="#admin" class="adm-nav">🔐 Admin</a></li>
+    <li><a href="hi.html" class="adm-nav">Bracket</a></li>
   </ul>
 </nav>
 
-<!-- HERO -->
+<!-- ════ HERO ════ -->
 <section id="hero">
   <div class="pokeball-bg"></div>
   <div class="floating-sprites" id="floatSprites"></div>
@@ -401,13 +347,12 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
       <span class="l3">Pokémon Tournament 2026</span>
     </h1>
     <p class="hero-desc">Login with your email, register your trainer, and build a team of 6 unique Pokémon. Teams are revealed on March 22, 2026.</p>
-    <div class="fb-badge"><span class="fb-dot"></span>🔥 Powered by Firebase — Live Data</div><br>
     <a href="#loginGate" class="btn btn-primary">⚡ Get Started</a>&nbsp;
     <a href="#trainers" class="btn btn-outline">🏟️ View Roster</a>
   </div>
 </section>
 
-<!-- RULES -->
+<!-- ════ RULES ════ -->
 <section id="rules">
   <div class="container">
     <div class="section-header"><span class="section-tag">📜 Official Rules</span><h2 class="section-title">PPvPL Tournament Rules</h2><div class="section-divider"></div></div>
@@ -422,11 +367,12 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
   </div>
 </section>
 
-<!-- LOGIN GATE -->
+<!-- ════ LOGIN / REGISTER GATE ════ -->
 <section id="loginGate">
   <div class="container">
     <div class="section-header"><span class="section-tag">📧 Authentication</span><h2 class="section-title">Login / Register</h2><div class="section-divider"></div></div>
     <div class="login-wrap">
+      <!-- NOT LOGGED IN -->
       <div id="loginForm">
         <div class="login-card">
           <div class="login-icon">⚡</div>
@@ -441,6 +387,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
             <input type="email" id="loginEmail" placeholder="your@email.com" onkeydown="if(event.key==='Enter')doLogin()">
             <div class="field-err" id="loginEmailErr"></div>
           </div>
+          <!-- Registration extra fields -->
           <div id="regFields" style="display:none">
             <div class="form-grid" style="margin-bottom:1rem">
               <div class="form-group full">
@@ -464,6 +411,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
           <div id="loginAlert" style="margin-top:1rem"></div>
         </div>
       </div>
+      <!-- LOGGED IN STATE -->
       <div id="loggedInCard" style="display:none">
         <div class="login-card">
           <div style="text-align:center;margin-bottom:1.2rem">
@@ -478,6 +426,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
           </div>
           <div style="display:flex;gap:.8rem;flex-wrap:wrap">
             <a href="#builder" class="btn btn-primary btn-sm" style="flex:1;justify-content:center">⚔️ Build Team</a>
+            <button class="btn btn-outline btn-sm" onclick="updateProfile()" style="flex:1;justify-content:center">✏️ Edit Profile</button>
             <button class="btn btn-danger btn-sm" onclick="doLogout()" style="flex:1;justify-content:center">🚪 Logout</button>
           </div>
           <div id="liAlert" style="margin-top:1rem"></div>
@@ -487,7 +436,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
   </div>
 </section>
 
-<!-- BUILDER -->
+<!-- ════ BUILDER ════ -->
 <section id="builder">
   <div class="container">
     <div class="section-header"><span class="section-tag">⚔️ Squad Assembly</span><h2 class="section-title">Pokémon Team Builder</h2><div class="section-divider"></div></div>
@@ -513,14 +462,14 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
   </div>
 </section>
 
-<!-- ROSTER -->
+<!-- ════ ROSTER ════ -->
 <section id="trainers">
   <div class="container">
     <div class="section-header"><span class="section-tag">🏟️ PPvPL Roster</span><h2 class="section-title">Registered Trainers</h2><div class="section-divider"></div></div>
     <div class="cd-banner">
       <div>
         <div class="cd-lbl">⚔️ TEAM REVEAL COUNTDOWN — PPvPL 2026</div>
-        <div class="cd-sub" id="cdSub">Teams are locked until March 22, 2026</div>
+        <div class="cd-sub">Teams are locked until March 22, 2026</div>
       </div>
       <div class="cd-timer">
         <div class="cd-unit"><span class="cd-num" id="cdD">--</span><span class="cd-sublbl">Days</span></div>
@@ -536,11 +485,11 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
       <div class="tr-count" id="trCount">⚡ 0 Trainers Registered</div>
       <div class="rev-badge" id="revBadge">🔒 Teams Hidden Until Mar 22</div>
     </div>
-    <div class="tr-grid" id="trGrid"><div class="loading-tr">⏳ Connecting to Firebase...</div></div>
+    <div class="tr-grid" id="trGrid"><div class="loading-tr">⏳ Loading roster...</div></div>
   </div>
 </section>
 
-<!-- MY TEAM PREVIEW -->
+<!-- ════ MY TEAM PREVIEW ════ -->
 <section id="preview">
   <div class="container">
     <div class="section-header"><span class="section-tag">🏆 My Card</span><h2 class="section-title">My Team Preview</h2><div class="section-divider"></div></div>
@@ -550,7 +499,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
   </div>
 </section>
 
-<!-- ADMIN -->
+<!-- ════ ADMIN ════ -->
 <section id="admin">
   <div class="container">
     <div class="section-header"><span class="section-tag">🔐 Admin</span><h2 class="section-title">Tournament Management</h2><div class="section-divider"></div></div>
@@ -581,7 +530,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
             <button class="btn btn-yellow btn-sm" onclick="saveAdmDate()">💾 Save Date</button>
           </div>
           <div id="admDateMsg"></div>
-          <p style="font-size:13px;color:var(--text-dim);margin-top:.5rem">After this date, all trainer teams will be locked and publicly visible.</p>
+          <p style="font-size:13px;color:var(--text-dim);margin-top:.5rem">After this date, all trainer teams will be locked. Teams will also become publicly visible.</p>
         </div>
       </div>
       <!-- Hidden entries -->
@@ -630,7 +579,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
         <div class="form-group"><label>Trainer Code</label><input type="text" id="mCode" maxlength="20"></div>
       </div>
       <div id="mAlert" style="margin-bottom:1rem"></div>
-      <input type="hidden" id="mKey">
+      <input type="hidden" id="mIdx">
       <div style="display:flex;gap:.8rem;justify-content:flex-end">
         <button class="btn btn-sm btn-outline" onclick="closeModal()">Cancel</button>
         <button class="btn btn-sm btn-yellow" onclick="saveModal()">💾 Save</button>
@@ -640,22 +589,25 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
 </div>
 
 <footer>
-  <p><span>⚡ Palakkad PvP League 2026</span> &nbsp;|&nbsp; Pokémon Tournament &nbsp;|&nbsp; Fan-made &nbsp;|&nbsp; Sprites via <a href="https://pokeapi.co" target="_blank">PokéAPI</a> &nbsp;|&nbsp; 🔥 Firebase Realtime DB</p>
+  <p><span>⚡ Palakkad PvP League 2026</span> &nbsp;|&nbsp; Pokémon Tournament &nbsp;|&nbsp; Fan-made &nbsp;|&nbsp; Sprites via <a href="https://pokeapi.co" target="_blank">PokéAPI</a></p>
 </footer>
 
 <script>
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // CONFIG
-// ══════════════════════════════════════════════
-const ADMIN_PW = 'ppl2026admin'; // ← change this
-const SLOTS    = 6;
-let REVEAL_DATE = new Date('2026-03-22T00:00:00');
+// ═══════════════════════════════════════════════════════
+const STORAGE_KEY   = 'ppl2026:v4';
+const ADMIN_PW      = 'ppl2026admin';   // ← change this
+const SLOTS         = 6;
+let REVEAL_DATE     = new Date('2026-03-22T00:00:00');  // overridden by admin
 
-// ══════════════════════════════════════════════
-// POKÉMON DATA
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// POKEMON DATA — Complete Pokémon GO Pokédex (Gen 1–9)
+// 941 Pokémon available as of March 2026
+// Source: pokemondb.net/go/pokedex + bulbapedia availability list
+// ═══════════════════════════════════════════════════════
 const POKE = [
-  // GEN 1
+  // ── GEN 1 — KANTO (all 151) ──
   {id:1,n:'Bulbasaur'},{id:2,n:'Ivysaur'},{id:3,n:'Venusaur'},{id:4,n:'Charmander'},{id:5,n:'Charmeleon'},{id:6,n:'Charizard'},
   {id:7,n:'Squirtle'},{id:8,n:'Wartortle'},{id:9,n:'Blastoise'},{id:10,n:'Caterpie'},{id:11,n:'Metapod'},{id:12,n:'Butterfree'},
   {id:13,n:'Weedle'},{id:14,n:'Kakuna'},{id:15,n:'Beedrill'},{id:16,n:'Pidgey'},{id:17,n:'Pidgeotto'},{id:18,n:'Pidgeot'},
@@ -685,7 +637,7 @@ const POKE = [
   {id:137,n:'Porygon'},{id:138,n:'Omanyte'},{id:139,n:'Omastar'},{id:140,n:'Kabuto'},{id:141,n:'Kabutops'},
   {id:142,n:'Aerodactyl'},{id:143,n:'Snorlax'},{id:144,n:'Articuno'},{id:145,n:'Zapdos'},{id:146,n:'Moltres'},
   {id:147,n:'Dratini'},{id:148,n:'Dragonair'},{id:149,n:'Dragonite'},{id:150,n:'Mewtwo'},{id:151,n:'Mew'},
-  // GEN 2
+  // ── GEN 2 — JOHTO (all 100) ──
   {id:152,n:'Chikorita'},{id:153,n:'Bayleef'},{id:154,n:'Meganium'},
   {id:155,n:'Cyndaquil'},{id:156,n:'Quilava'},{id:157,n:'Typhlosion'},
   {id:158,n:'Totodile'},{id:159,n:'Croconaw'},{id:160,n:'Feraligatr'},
@@ -717,7 +669,7 @@ const POKE = [
   {id:243,n:'Raikou'},{id:244,n:'Entei'},{id:245,n:'Suicune'},
   {id:246,n:'Larvitar'},{id:247,n:'Pupitar'},{id:248,n:'Tyranitar'},
   {id:249,n:'Lugia'},{id:250,n:'Ho-Oh'},{id:251,n:'Celebi'},
-  // GEN 3
+  // ── GEN 3 — HOENN (all 135) ──
   {id:252,n:'Treecko'},{id:253,n:'Grovyle'},{id:254,n:'Sceptile'},
   {id:255,n:'Torchic'},{id:256,n:'Combusken'},{id:257,n:'Blaziken'},
   {id:258,n:'Mudkip'},{id:259,n:'Marshtomp'},{id:260,n:'Swampert'},
@@ -757,7 +709,7 @@ const POKE = [
   {id:377,n:'Regirock'},{id:378,n:'Regice'},{id:379,n:'Registeel'},
   {id:380,n:'Latias'},{id:381,n:'Latios'},{id:382,n:'Kyogre'},{id:383,n:'Groudon'},
   {id:384,n:'Rayquaza'},{id:385,n:'Jirachi'},{id:386,n:'Deoxys'},
-  // GEN 4
+  // ── GEN 4 — SINNOH (104/107) ──
   {id:387,n:'Turtwig'},{id:388,n:'Grotle'},{id:389,n:'Torterra'},
   {id:390,n:'Chimchar'},{id:391,n:'Monferno'},{id:392,n:'Infernape'},
   {id:393,n:'Piplup'},{id:394,n:'Prinplup'},{id:395,n:'Empoleon'},
@@ -789,7 +741,7 @@ const POKE = [
   {id:483,n:'Dialga'},{id:484,n:'Palkia'},{id:485,n:'Heatran'},{id:486,n:'Regigigas'},
   {id:487,n:'Giratina'},{id:488,n:'Cresselia'},{id:489,n:'Phione'},{id:490,n:'Manaphy'},
   {id:491,n:'Darkrai'},{id:492,n:'Shaymin'},{id:493,n:'Arceus'},
-  // GEN 5
+  // ── GEN 5 — UNOVA (all 156) ──
   {id:494,n:'Victini'},
   {id:495,n:'Snivy'},{id:496,n:'Servine'},{id:497,n:'Serperior'},
   {id:498,n:'Tepig'},{id:499,n:'Pignite'},{id:500,n:'Emboar'},
@@ -834,7 +786,7 @@ const POKE = [
   {id:641,n:'Tornadus'},{id:642,n:'Thundurus'},{id:643,n:'Reshiram'},{id:644,n:'Zekrom'},
   {id:645,n:'Landorus'},{id:646,n:'Kyurem'},
   {id:647,n:'Keldeo'},{id:648,n:'Meloetta'},{id:649,n:'Genesect'},
-  // GEN 6
+  // ── GEN 6 — KALOS (all 72) ──
   {id:650,n:'Chespin'},{id:651,n:'Quilladin'},{id:652,n:'Chesnaught'},
   {id:653,n:'Fennekin'},{id:654,n:'Braixen'},{id:655,n:'Delphox'},
   {id:656,n:'Froakie'},{id:657,n:'Frogadier'},{id:658,n:'Greninja'},
@@ -855,7 +807,7 @@ const POKE = [
   {id:710,n:'Pumpkaboo'},{id:711,n:'Gourgeist'},{id:712,n:'Bergmite'},{id:713,n:'Avalugg'},
   {id:714,n:'Noibat'},{id:715,n:'Noivern'},{id:716,n:'Xerneas'},{id:717,n:'Yveltal'},{id:718,n:'Zygarde'},
   {id:719,n:'Diancie'},{id:720,n:'Hoopa'},{id:721,n:'Volcanion'},
-  // GEN 7
+  // ── GEN 7 — ALOLA (81/88) ──
   {id:722,n:'Rowlet'},{id:723,n:'Dartrix'},{id:724,n:'Decidueye'},
   {id:725,n:'Litten'},{id:726,n:'Torracat'},{id:727,n:'Incineroar'},
   {id:728,n:'Popplio'},{id:729,n:'Brionne'},{id:730,n:'Primarina'},
@@ -881,7 +833,7 @@ const POKE = [
   {id:800,n:'Necrozma'},{id:801,n:'Magearna'},{id:802,n:'Marshadow'},
   {id:803,n:'Poipole'},{id:804,n:'Naganadel'},{id:805,n:'Stakataka'},{id:806,n:'Blacephalon'},
   {id:807,n:'Zeraora'},{id:808,n:'Meltan'},{id:809,n:'Melmetal'},
-  // GEN 8
+  // ── GEN 8 — GALAR (75/96) ──
   {id:810,n:'Grookey'},{id:811,n:'Thwackey'},{id:812,n:'Rillaboom'},
   {id:813,n:'Scorbunny'},{id:814,n:'Raboot'},{id:815,n:'Cinderace'},
   {id:816,n:'Sobble'},{id:817,n:'Drizzile'},{id:818,n:'Inteleon'},
@@ -908,7 +860,7 @@ const POKE = [
   {id:891,n:'Kubfu'},{id:892,n:'Urshifu'},{id:893,n:'Zarude'},
   {id:894,n:'Regieleki'},{id:895,n:'Regidrago'},{id:896,n:'Glastrier'},{id:897,n:'Spectrier'},
   {id:898,n:'Calyrex'},
-  // GEN 9
+  // ── GEN 9 — PALDEA (available in GO as of 2026) ──
   {id:906,n:'Sprigatito'},{id:907,n:'Floragato'},{id:908,n:'Meowscarada'},
   {id:909,n:'Fuecoco'},{id:910,n:'Crocalor'},{id:911,n:'Skeledirge'},
   {id:912,n:'Quaxly'},{id:913,n:'Quaxwell'},{id:914,n:'Quaquaval'},
@@ -942,86 +894,242 @@ const POKE = [
   {id:1005,n:'Roaring Moon'},{id:1006,n:'Iron Valiant'},
   {id:1007,n:'Koraidon'},{id:1008,n:'Miraidon'},
 ];
-// Regional variants
+
+// ── REGIONAL VARIANTS — appended after base list ──
+// Using string IDs so they coexist with their base form numeric IDs.
+// Format: "dex#-a" = Alolan, "dex#-g" = Galarian, "dex#-h" = Hisuian, "dex#-p" = Paldean
 POKE.push(
-  {id:'19-a',n:'Rattata (Alola)'},{id:'20-a',n:'Raticate (Alola)'},
-  {id:'26-a',n:'Raichu (Alola)'},{id:'27-a',n:'Sandshrew (Alola)'},{id:'28-a',n:'Sandslash (Alola)'},
-  {id:'37-a',n:'Vulpix (Alola)'},{id:'38-a',n:'Ninetales (Alola)'},
-  {id:'50-a',n:'Diglett (Alola)'},{id:'51-a',n:'Dugtrio (Alola)'},
-  {id:'52-a',n:'Meowth (Alola)'},{id:'53-a',n:'Persian (Alola)'},
-  {id:'74-a',n:'Geodude (Alola)'},{id:'75-a',n:'Graveler (Alola)'},{id:'76-a',n:'Golem (Alola)'},
-  {id:'88-a',n:'Grimer (Alola)'},{id:'89-a',n:'Muk (Alola)'},
-  {id:'103-a',n:'Exeggutor (Alola)'},{id:'105-a',n:'Marowak (Alola)'},
-  {id:'52-g',n:'Meowth (Galar)'},{id:'77-g',n:'Ponyta (Galar)'},{id:'78-g',n:'Rapidash (Galar)'},
-  {id:'79-g',n:'Slowpoke (Galar)'},{id:'80-g',n:'Slowbro (Galar)'},{id:'83-g',n:"Farfetch'd (Galar)"},
-  {id:'110-g',n:'Weezing (Galar)'},{id:'122-g',n:'Mr. Mime (Galar)'},
-  {id:'144-g',n:'Articuno (Galar)'},{id:'145-g',n:'Zapdos (Galar)'},{id:'146-g',n:'Moltres (Galar)'},
-  {id:'199-g',n:'Slowking (Galar)'},{id:'222-g',n:'Corsola (Galar)'},
-  {id:'263-g',n:'Zigzagoon (Galar)'},{id:'264-g',n:'Linoone (Galar)'},
-  {id:'554-g',n:'Darumaka (Galar)'},{id:'555-g',n:'Darmanitan (Galar)'},
-  {id:'562-g',n:'Yamask (Galar)'},{id:'618-g',n:'Stunfisk (Galar)'},
-  {id:'58-h',n:'Growlithe (Hisui)'},{id:'59-h',n:'Arcanine (Hisui)'},
-  {id:'100-h',n:'Voltorb (Hisui)'},{id:'101-h',n:'Electrode (Hisui)'},
-  {id:'157-h',n:'Typhlosion (Hisui)'},{id:'211-h',n:'Qwilfish (Hisui)'},
-  {id:'215-h',n:'Sneasel (Hisui)'},{id:'503-h',n:'Samurott (Hisui)'},
-  {id:'549-h',n:'Lilligant (Hisui)'},{id:'570-h',n:'Zorua (Hisui)'},
-  {id:'571-h',n:'Zoroark (Hisui)'},{id:'628-h',n:'Braviary (Hisui)'},
-  {id:'705-h',n:'Sliggoo (Hisui)'},{id:'706-h',n:'Goodra (Hisui)'},
-  {id:'713-h',n:'Avalugg (Hisui)'},{id:'724-h',n:'Decidueye (Hisui)'},
-  {id:'194-p',n:'Wooper (Paldea)'},{id:'128-p',n:'Tauros (Paldea — Combat)'},
-  {id:'128-p2',n:'Tauros (Paldea — Blaze)'},{id:'128-p3',n:'Tauros (Paldea — Aqua)'},
+  // ════ ALOLAN FORMS (from Gen 7 — available in Pokémon GO) ════
+  {id:'19-a',  n:'Rattata (Alola)'},
+  {id:'20-a',  n:'Raticate (Alola)'},
+  {id:'26-a',  n:'Raichu (Alola)'},
+  {id:'27-a',  n:'Sandshrew (Alola)'},
+  {id:'28-a',  n:'Sandslash (Alola)'},
+  {id:'37-a',  n:'Vulpix (Alola)'},
+  {id:'38-a',  n:'Ninetales (Alola)'},
+  {id:'50-a',  n:'Diglett (Alola)'},
+  {id:'51-a',  n:'Dugtrio (Alola)'},
+  {id:'52-a',  n:'Meowth (Alola)'},
+  {id:'53-a',  n:'Persian (Alola)'},
+  {id:'74-a',  n:'Geodude (Alola)'},
+  {id:'75-a',  n:'Graveler (Alola)'},
+  {id:'76-a',  n:'Golem (Alola)'},
+  {id:'88-a',  n:'Grimer (Alola)'},
+  {id:'89-a',  n:'Muk (Alola)'},
+  {id:'103-a', n:'Exeggutor (Alola)'},
+  {id:'105-a', n:'Marowak (Alola)'},
+  // ════ GALARIAN FORMS (from Gen 8 — available in Pokémon GO) ════
+  {id:'52-g',  n:'Meowth (Galar)'},
+  {id:'77-g',  n:'Ponyta (Galar)'},
+  {id:'78-g',  n:'Rapidash (Galar)'},
+  {id:'79-g',  n:'Slowpoke (Galar)'},
+  {id:'80-g',  n:'Slowbro (Galar)'},
+  {id:'83-g',  n:"Farfetch'd (Galar)"},
+  {id:'110-g', n:'Weezing (Galar)'},
+  {id:'122-g', n:'Mr. Mime (Galar)'},
+  {id:'144-g', n:'Articuno (Galar)'},
+  {id:'145-g', n:'Zapdos (Galar)'},
+  {id:'146-g', n:'Moltres (Galar)'},
+  {id:'199-g', n:'Slowking (Galar)'},
+  {id:'222-g', n:'Corsola (Galar)'},
+  {id:'263-g', n:'Zigzagoon (Galar)'},
+  {id:'264-g', n:'Linoone (Galar)'},
+  {id:'554-g', n:'Darumaka (Galar)'},
+  {id:'555-g', n:'Darmanitan (Galar)'},
+  {id:'562-g', n:'Yamask (Galar)'},
+  {id:'618-g', n:'Stunfisk (Galar)'},
+  // ════ HISUIAN FORMS (from Legends: Arceus — available in Pokémon GO) ════
+  {id:'58-h',  n:'Growlithe (Hisui)'},
+  {id:'59-h',  n:'Arcanine (Hisui)'},
+  {id:'100-h', n:'Voltorb (Hisui)'},
+  {id:'101-h', n:'Electrode (Hisui)'},
+  {id:'157-h', n:'Typhlosion (Hisui)'},
+  {id:'211-h', n:'Qwilfish (Hisui)'},
+  {id:'215-h', n:'Sneasel (Hisui)'},
+  {id:'503-h', n:'Samurott (Hisui)'},
+  {id:'549-h', n:'Lilligant (Hisui)'},
+  {id:'570-h', n:'Zorua (Hisui)'},
+  {id:'571-h', n:'Zoroark (Hisui)'},
+  {id:'628-h', n:'Braviary (Hisui)'},
+  {id:'705-h', n:'Sliggoo (Hisui)'},
+  {id:'706-h', n:'Goodra (Hisui)'},
+  {id:'713-h', n:'Avalugg (Hisui)'},
+  {id:'724-h', n:'Decidueye (Hisui)'},
+  // ════ PALDEAN FORMS (from Gen 9 — available in Pokémon GO) ════
+  {id:'194-p', n:'Wooper (Paldea)'},
+  {id:'128-p', n:'Tauros (Paldea — Combat)'},
+  {id:'128-p2',n:'Tauros (Paldea — Blaze)'},
+  {id:'128-p3',n:'Tauros (Paldea — Aqua)'},
 );
 
-// ══════════════════════════════════════════════
-// SPRITE HELPERS
-// ══════════════════════════════════════════════
-function _numId(id){ return parseInt(String(id),10)||1; }
-function sprUrl(id,att){
-  const n=_numId(id);
-  if(att===0) return `https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/${n}.png`;
-  if(att===1) return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${n}.png`;
+// ═══════════════════════════════════════════════════════
+// SPRITE SYSTEM
+// ═══════════════════════════════════════════════════════
+// Uses the NUMERIC dex ID directly in the URL — no name slugs needed.
+// This is the most reliable approach as IDs never change.
+// Sources tried in order:
+//   1. PokeAPI via jsDelivr CDN — reliable CDN, no CORS
+//   2. PokeAPI raw GitHub       — direct fallback
+//   3. Inline SVG pokéball      — always works, no network needed
+
+// Extract numeric dex ID from any ID (e.g. "38-a" → 38, 25 → 25)
+function _numId(id) { return parseInt(String(id), 10) || 1; }
+
+function sprUrl(id, attempt) {
+  const num = _numId(id);   // always numeric — works for ALL Pokémon including variants
+  if (attempt === 0) return `https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master/sprites/pokemon/${num}.png`;
+  if (attempt === 1) return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${num}.png`;
   return _sprSVG(id);
 }
-function _sprSVG(id){
-  const cols=['%23FF4444','%23FFD700','%2300C8FF','%239B30FF','%2300FF88','%23FF8800'];
-  const n=parseInt(String(id),10)||0;
-  const c=cols[n%cols.length];
-  const lbl=String(id).length>4?String(id):String(n).padStart(3,'0');
-  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Ccircle cx='48' cy='48' r='44' fill='%231A1A25' stroke='${c}' stroke-width='3'/%3E%3Cpath d='M4 48h88' stroke='${c}' stroke-width='2.5' opacity='.7'/%3E%3Ccircle cx='48' cy='48' r='12' fill='%231A1A25' stroke='${c}' stroke-width='2.5'/%3E%3Ccircle cx='48' cy='48' r='6' fill='${c}'/%3E%3Ctext x='48' y='22' text-anchor='middle' fill='${c}' font-size='11' font-family='monospace' font-weight='bold'%3E%23${lbl}%3C/text%3E%3C/svg%3E`;
-}
-function mkImgEl(id,w,h,shadow){
-  const img=document.createElement('img');
-  img.width=w; img.height=h; img.className='poke-img';
-  img.style.cssText=`width:${w}px;height:${h}px;object-fit:contain;display:block;`+(shadow?'filter:brightness(.5) saturate(.15) hue-rotate(260deg) drop-shadow(0 0 8px rgba(155,48,255,.9));':'');
-  img.alt=monName(id)||`#${id}`; img.setAttribute('loading','lazy');
-  let att=0;
-  function tryNext(){ img.src=sprUrl(id,att); }
-  img.onerror=function(){ att++; if(att<=1) tryNext(); else{ img.onerror=null; img.src=_sprSVG(id); } };
-  img.onload=function(){ img.classList.add('loaded'); };
-  tryNext(); return img;
-}
-function mkImgHtml(id,w,h,shadow){
-  const sf=shadow?'filter:brightness(.5) saturate(.15) hue-rotate(260deg) drop-shadow(0 0 8px rgba(155,48,255,.9));':'';
-  return `<img class="poke-img" data-pid="${id}" data-att="0" src="${sprUrl(id,0)}" width="${w}" height="${h}" style="width:${w}px;height:${h}px;object-fit:contain;display:block;${sf}" loading="lazy" alt="${monName(id)||'#'+id}" onload="this.classList.add('loaded')" onerror="handleImgErr(this)">`;
-}
-function handleImgErr(img){
-  const id=img.dataset.pid;
-  let att=parseInt(img.dataset.att||'0',10)+1;
-  img.dataset.att=att;
-  if(att<=1) img.src=sprUrl(id,att);
-  else{ img.onerror=null; img.src=_sprSVG(id); }
+
+// pokemondb uses lowercase hyphenated names — handle all special cases
+// Regional variants use string IDs like "19-a" (Alolan), "52-g" (Galarian), etc.
+function _pokeName(id) {
+  // Full override map — numeric IDs + string IDs for regional variants
+  const overrides = {
+    // Standard special cases
+    29:'nidoran-f', 32:'nidoran-m', 83:'farfetchd', 122:'mr-mime',
+    439:'mime-jr', 474:'porygon-z', 772:'type-null', 785:'tapu-koko',
+    786:'tapu-lele', 787:'tapu-bulu', 788:'tapu-fini', 782:'jangmo-o',
+    783:'hakamo-o', 784:'kommo-o', 865:'sirfetchd', 866:'mr-rime',
+    984:'great-tusk', 985:'scream-tail', 986:'brute-bonnet',
+    987:'flutter-mane', 988:'slither-wing', 989:'sandy-shocks',
+    990:'iron-treads', 991:'iron-bundle', 992:'iron-hands',
+    993:'iron-jugulis', 994:'iron-moth', 995:'iron-thorns',
+    1000:'gholdengo', 1001:'wo-chien', 1002:'chien-pao',
+    1003:'ting-lu', 1004:'chi-yu', 1005:'roaring-moon',
+    1006:'iron-valiant', 1007:'koraidon', 1008:'miraidon',
+    // ── ALOLAN VARIANTS ──
+    '19-a':'rattata-alolan',  '20-a':'raticate-alolan',
+    '26-a':'raichu-alolan',   '27-a':'sandshrew-alolan', '28-a':'sandslash-alolan',
+    '37-a':'vulpix-alolan',   '38-a':'ninetales-alolan',
+    '50-a':'diglett-alolan',  '51-a':'dugtrio-alolan',
+    '52-a':'meowth-alolan',   '53-a':'persian-alolan',
+    '74-a':'geodude-alolan',  '75-a':'graveler-alolan',  '76-a':'golem-alolan',
+    '88-a':'grimer-alolan',   '89-a':'muk-alolan',
+    '103-a':'exeggutor-alolan','105-a':'marowak-alolan',
+    // ── GALARIAN VARIANTS ──
+    '52-g':'meowth-galarian',   '77-g':'ponyta-galarian',   '78-g':'rapidash-galarian',
+    '79-g':'slowpoke-galarian', '80-g':'slowbro-galarian',  '83-g':'farfetchd-galarian',
+    '110-g':'weezing-galarian', '122-g':'mr-mime-galarian', '144-g':'articuno-galarian',
+    '145-g':'zapdos-galarian',  '146-g':'moltres-galarian', '199-g':'slowking-galarian',
+    '222-g':'corsola-galarian', '263-g':'zigzagoon-galarian','264-g':'linoone-galarian',
+    '554-g':'darumaka-galarian','555-g':'darmanitan-galarian',
+    '562-g':'yamask-galarian',  '618-g':'stunfisk-galarian',
+    // ── HISUIAN VARIANTS ──
+    '58-h':'growlithe-hisuian',  '59-h':'arcanine-hisuian',
+    '100-h':'voltorb-hisuian',   '101-h':'electrode-hisuian',
+    '157-h':'typhlosion-hisuian','211-h':'qwilfish-hisuian',
+    '215-h':'sneasel-hisuian',   '503-h':'samurott-hisuian',
+    '549-h':'lilligant-hisuian', '570-h':'zorua-hisuian',
+    '571-h':'zoroark-hisuian',   '628-h':'braviary-hisuian',
+    '705-h':'sliggoo-hisuian',   '706-h':'goodra-hisuian',
+    '713-h':'avalugg-hisuian',   '724-h':'decidueye-hisuian',
+    // ── PALDEAN VARIANTS ──
+    '194-p':'wooper-paldean',
+    '128-p':'tauros-paldea-combat',
+    '128-p2':'tauros-paldea-blaze',
+    '128-p3':'tauros-paldea-aqua',
+    // ── GALARIAN EVOLUTIONS (new evolutions of Galarian forms) ──
+    '862-g':'obstagoon',    // Galarian Linoone → Obstagoon (already in main list)
+    '863-g':'perrserker',   // Galarian Meowth → Perrserker
+    '864-g':'cursola',      // Galarian Corsola → Cursola
+    '866-g':'mr-rime',      // Galarian Mr. Mime → Mr. Rime
+    '867-g':'runerigus',    // Galarian Yamask → Runerigus
+  };
+  const key = typeof id === 'string' ? id : Number(id);
+  if (overrides[key] !== undefined) return overrides[key];
+  // For string IDs not in overrides, find by id in POKE
+  const p = POKE.find(x => x.id === id);
+  if (!p) return String(id);
+  return p.n.toLowerCase()
+    .replace(/♀/g,'f').replace(/♂/g,'m')
+    .replace(/[.:'']/g,'')
+    .replace(/\s+/g,'-')
+    .replace(/[^a-z0-9\-]/g,'')
+    .replace(/-+/g,'-')
+    .replace(/^-|-$/g,'');
 }
 
-// ══════════════════════════════════════════════
+function _sprSVG(id) {
+  const cols = ['%23FF4444','%23FFD700','%2300C8FF','%239B30FF','%2300FF88','%23FF8800'];
+  // Extract numeric part for color index (handles both 25 and "19-a")
+  const numPart = parseInt(String(id), 10) || 0;
+  const c = cols[numPart % cols.length];
+  const label = String(id).length > 4 ? String(id) : String(numPart).padStart(3,'0');
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E`
+       + `%3Ccircle cx='48' cy='48' r='44' fill='%231A1A25' stroke='${c}' stroke-width='3'/%3E`
+       + `%3Cpath d='M4 48h88' stroke='${c}' stroke-width='2.5' opacity='.7'/%3E`
+       + `%3Ccircle cx='48' cy='48' r='12' fill='%231A1A25' stroke='${c}' stroke-width='2.5'/%3E`
+       + `%3Ccircle cx='48' cy='48' r='6' fill='${c}'/%3E`
+       + `%3Ctext x='48' y='22' text-anchor='middle' fill='${c}' font-size='11' font-family='monospace' font-weight='bold'%3E%23${label}%3C/text%3E`
+       + `%3C/svg%3E`;
+}
+
+// Build DOM img element — used where we have direct DOM access
+function mkImgEl(id, w, h, shadowFilter) {
+  const img = document.createElement('img');
+  img.width = w; img.height = h;
+  img.className = 'poke-img';
+  img.style.cssText = `width:${w}px;height:${h}px;object-fit:contain;display:block;`
+    + (shadowFilter ? 'filter:brightness(.5) saturate(.15) hue-rotate(260deg) drop-shadow(0 0 8px rgba(155,48,255,.9));' : '');
+  img.alt = monName(id) || `#${id}`;
+  img.setAttribute('loading','lazy');
+
+  let attempt = 0;
+  function tryNext() {
+    img.src = sprUrl(id, attempt);
+  }
+  img.onerror = function() {
+    attempt++;
+    if (attempt <= 1) { tryNext(); }
+    else { img.onerror = null; img.src = _sprSVG(id); }
+  };
+  img.onload = function() { img.classList.add('loaded'); };
+  tryNext();
+  return img;
+}
+
+// Build HTML string img — used inside innerHTML templates
+// IMPORTANT: onerror must be simple and not embed complex strings
+function mkImgHtml(id, w, h, shadowFilter) {
+  const sf = shadowFilter
+    ? 'filter:brightness(.5) saturate(.15) hue-rotate(260deg) drop-shadow(0 0 8px rgba(155,48,255,.9));'
+    : '';
+  // We use a data-id attribute and a global handler to avoid embedding URLs in onerror
+  return `<img class="poke-img" data-pid="${id}" data-att="0" `
+       + `src="${sprUrl(id,0)}" `
+       + `width="${w}" height="${h}" `
+       + `style="width:${w}px;height:${h}px;object-fit:contain;display:block;${sf}" `
+       + `loading="lazy" alt="${monName(id)||'#'+id}" `
+       + `onload="this.classList.add('loaded')" `
+       + `onerror="handleImgErr(this)">`;
+}
+
+// Global handler for inline onerror — keeps HTML attributes clean
+function handleImgErr(img) {
+  // Use data-pid as-is — do NOT parseInt, regional variants have string IDs like "19-a"
+  const id  = img.dataset.pid;
+  let att   = parseInt(img.dataset.att || '0', 10) + 1;
+  img.dataset.att = att;
+  if (att <= 1) {
+    img.src = sprUrl(id, att);
+  } else {
+    img.onerror = null;
+    img.src = _sprSVG(id);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // STATE
-// ══════════════════════════════════════════════
-let slots=Array.from({length:SLOTS},()=>({id:null,shadow:false}));
-let openPicker=null;
-let currentUser=null;
+// ═══════════════════════════════════════════════════════
+let slots      = Array.from({length:SLOTS}, ()=>({id:null, shadow:false, cp:null}));
+let openPicker = null;
+let currentUser = null;   // { email, name, level, code }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // HELPERS
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function gval(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
 function sval(id,v){ const e=document.getElementById(id); if(e) e.value=v; }
@@ -1035,19 +1143,33 @@ function isTournamentStarted(){ return new Date()>=REVEAL_DATE; }
 function pad(n){ return String(Math.max(0,n)).padStart(2,'0'); }
 function validEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 
-// ══════════════════════════════════════════════
-// FIREBASE WAIT HELPER
-// ══════════════════════════════════════════════
-function waitFb(){
-  return new Promise(res=>{
-    if(window._fbReady&&window._fb) return res(window._fb);
-    document.addEventListener('fbReady',()=>res(window._fb),{once:true});
-  });
+// ═══════════════════════════════════════════════════════
+// STORAGE  (shared window.storage + localStorage fallback)
+// ═══════════════════════════════════════════════════════
+async function dbGet() {
+  if(window.storage&&typeof window.storage.get==='function'){
+    try{ const r=await window.storage.get(STORAGE_KEY,true); if(r&&r.value) return JSON.parse(r.value); } catch(_){}
+  }
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')||{trainers:[],settings:{startDate:'2026-03-22',hiddenEmails:[]}}; } catch(_){}
+  return {trainers:[],settings:{startDate:'2026-03-22',hiddenEmails:[]}};
+}
+async function dbSet(data) {
+  const json=JSON.stringify(data);
+  if(window.storage&&typeof window.storage.set==='function'){
+    try{ await window.storage.set(STORAGE_KEY,json,true); } catch(_){}
+  }
+  try{ localStorage.setItem(STORAGE_KEY,json); } catch(_){}
+}
+async function dbGetSettings(){ const d=await dbGet(); return d.settings||{startDate:'2026-03-22',hiddenEmails:[]}; }
+async function dbGetTrainers(){ const d=await dbGet(); return d.trainers||[]; }
+async function dbSaveAll(trainers,settings){
+  const current=await dbGet();
+  await dbSet({trainers, settings:settings||current.settings||{startDate:'2026-03-22',hiddenEmails:[]}});
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // COUNTDOWN
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function tickCountdown(){
   const diff=REVEAL_DATE-new Date();
   if(diff<=0){
@@ -1057,13 +1179,14 @@ function tickCountdown(){
     return;
   }
   const d=Math.floor(diff/86400000),h=Math.floor(diff%86400000/3600000),m=Math.floor(diff%3600000/60000),s=Math.floor(diff%60000/1000);
-  ['cdD','cdH','cdM','cdS'].forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=pad([d,h,m,s][i]); });
+  document.getElementById('cdD').textContent=pad(d); document.getElementById('cdH').textContent=pad(h);
+  document.getElementById('cdM').textContent=pad(m); document.getElementById('cdS').textContent=pad(s);
 }
 
-// ══════════════════════════════════════════════
-// LOGIN / AUTH
-// ══════════════════════════════════════════════
-let loginMode='login';
+// ═══════════════════════════════════════════════════════
+// LOGIN / AUTH  (email-based, no password — simulated)
+// ═══════════════════════════════════════════════════════
+let loginMode = 'login';
 function switchTab(mode){
   loginMode=mode;
   document.getElementById('tabLogin').classList.toggle('active',mode==='login');
@@ -1079,19 +1202,22 @@ async function doLogin(){
   const email=gval('loginEmail').toLowerCase();
   if(!email||!validEmail(email)){ ferr('loginEmail','loginEmailErr','Enter a valid email address.'); return; }
 
-  const fb=await waitFb();
-  showAlert('loginAlert','⏳ Connecting to Firebase...','info');
-  const all=await fb.getTrainers();
-  const existing=all.find(e=>e.trainer&&e.trainer.email&&e.trainer.email.toLowerCase()===email);
+  const all=await dbGetTrainers();
+  const existing=all.find(t=>t.trainer.email&&t.trainer.email.toLowerCase()===email);
 
   if(loginMode==='login'){
-    if(!existing){ showAlert('loginAlert','⚠️ No account found. Switch to "New Trainer" to register.','error'); return; }
-    currentUser={email,name:existing.trainer.name,level:existing.trainer.level,code:existing.trainer.code,_key:existing._key};
+    if(!existing){ showAlert('loginAlert','⚠️ No account found for this email. Switch to "New Trainer" to register.','error'); return; }
+    // Log in
+    currentUser={email, name:existing.trainer.name, level:existing.trainer.level, code:existing.trainer.code};
     sessionStorage.setItem('pplUser',JSON.stringify(currentUser));
-    if(existing.team&&existing.team.length===6) slots=existing.team.map(p=>({id:p.id,shadow:p.shadow}));
+    // Load their slots
+    if(existing.team&&existing.team.length===6){
+      slots=existing.team.map(p=>({id:p.id,shadow:p.shadow}));
+    }
     onLoginSuccess();
     showAlert('loginAlert',`✅ Welcome back, ${esc(existing.trainer.name)}!`,'success');
   } else {
+    // Register new
     clrFormErrs([['regName','regNameErr'],['regLevel','regLevelErr'],['regCode','regCodeErr']]);
     const name=gval('regName'),level=gval('regLevel'),code=gval('regCode');
     let ok=true;
@@ -1099,31 +1225,38 @@ async function doLogin(){
     if(!level||isNaN(+level)||+level<1||+level>80){ ferr('regLevel','regLevelErr','Level must be 1–80.'); ok=false; }
     if(!code){ ferr('regCode','regCodeErr','Trainer code required.'); ok=false; }
     if(!ok) return;
-    if(existing){ showAlert('loginAlert','⚠️ Email already registered. Switch to "Login".','error'); return; }
-
-    const key=window._emailToKey(email);
-    const entry={trainer:{email,name,level,code},team:[],registeredAt:new Date().toISOString(),_key:key};
-    await fb.upsertTrainer(entry);
-    currentUser={email,name,level,code,_key:key};
+    if(existing){ showAlert('loginAlert','⚠️ This email already has an account. Switch to "Login".','error'); return; }
+    // Create account
+    const entry={trainer:{email,name,level,code},team:[],registeredAt:new Date().toISOString()};
+    all.push(entry);
+    const settings=await dbGetSettings();
+    await dbSaveAll(all,settings);
+    currentUser={email,name,level,code};
     sessionStorage.setItem('pplUser',JSON.stringify(currentUser));
     slots=Array.from({length:SLOTS},()=>({id:null,shadow:false}));
     onLoginSuccess();
-    showAlert('loginAlert',`✅ Account created! Welcome, ${esc(name)}!`,'success');
+    showAlert('loginAlert',`✅ Account created! Welcome to PPL, ${esc(name)}!`,'success');
+    loadBoard();
   }
 }
 
 function onLoginSuccess(){
+  // Show logged-in card
   document.getElementById('loginForm').style.display='none';
   document.getElementById('loggedInCard').style.display='block';
   document.getElementById('liEmail').textContent=currentUser.email;
   document.getElementById('liName').textContent=currentUser.name;
   document.getElementById('liMeta').textContent=`Level ${currentUser.level} · Code: ${currentUser.code}`;
+  // Nav pill
   document.getElementById('navUserPill').style.display='flex';
   document.getElementById('navUserEmail').textContent=currentUser.email;
+  // Show builder
   document.getElementById('builderGate').style.display='none';
   document.getElementById('builderContent').style.display='block';
   buildGrid();
+  // Check lock
   checkLockBanner();
+  // Load their preview
   loadPreviewForUser();
 }
 
@@ -1149,24 +1282,61 @@ function checkLockBanner(){
   if(locked){ if(sb) sb.disabled=true; if(eb) eb.disabled=true; }
 }
 
-// ══════════════════════════════════════════════
-// ROSTER BOARD  (real-time via onValue)
-// ══════════════════════════════════════════════
-async function loadBoard(all){
-  const grid=document.getElementById('trGrid');
-  if(!all){
-    // One-time fetch fallback
-    const fb=await waitFb();
-    all=await fb.getTrainers();
+async function updateProfile(){
+  // populate a quick inline edit in the loggedInCard
+  const t=currentUser;
+  sval('fName',t.name); sval('fLevel',t.level); sval('fCode',t.code);
+  document.getElementById('register').scrollIntoView({behavior:'smooth'});
+  showAlert('liAlert','Edit your trainer info below and click "Update Trainer Info".','info');
+  // Change register form button text
+  const btn=document.querySelector('#register .btn-yellow');
+  if(btn){btn.textContent='💾 Update Trainer Info';btn.onclick=saveTrainer;}
+}
+
+// ═══════════════════════════════════════════════════════
+// REGISTER — save / update trainer info
+// ═══════════════════════════════════════════════════════
+async function saveTrainer(){
+  clrFormErrs([['fName','errName'],['fLevel','errLevel'],['fCode','errCode']]);
+  if(!currentUser){ showAlert('trAlert','⚠️ Please login first.','error'); return; }
+  const name=gval('fName'),level=gval('fLevel'),code=gval('fCode');
+  let ok=true;
+  if(!name){ ferr('fName','errName','Name required.'); ok=false; }
+  if(!level||isNaN(+level)||+level<1||+level>80){ ferr('fLevel','errLevel','Level must be 1–80.'); ok=false; }
+  if(!code){ ferr('fCode','errCode','Code required.'); ok=false; }
+  if(!ok) return;
+
+  const all=await dbGetTrainers(), settings=await dbGetSettings();
+  const idx=all.findIndex(e=>e.trainer.email&&e.trainer.email.toLowerCase()===currentUser.email);
+  if(idx>=0){
+    all[idx].trainer.name=name; all[idx].trainer.level=level; all[idx].trainer.code=code;
+    all[idx].updatedAt=new Date().toISOString();
   }
-  const settings=await (await waitFb()).getSettings();
+  await dbSaveAll(all,settings);
+  currentUser={...currentUser,name,level,code};
+  sessionStorage.setItem('pplUser',JSON.stringify(currentUser));
+  document.getElementById('liName').textContent=name;
+  document.getElementById('liMeta').textContent=`Level ${level} · Code: ${code}`;
+  showAlert('trAlert',`✅ Trainer info updated!`,'success');
+  loadBoard();
+}
+
+// ═══════════════════════════════════════════════════════
+// ROSTER BOARD
+// ═══════════════════════════════════════════════════════
+async function loadBoard(){
+  const grid=document.getElementById('trGrid');
+  const data=await dbGet();
+  const all=data.trainers||[];
+  const settings=data.settings||{hiddenEmails:[]};
   const hiddenEmails=(settings.hiddenEmails||[]).map(e=>e.toLowerCase());
   const rev=isRevealed();
-  const HIDDEN_NAMES=['wysdom doom'];
 
+  // Filter out hidden entries and 'wysdom doom' (TASK 2 — hidden but data preserved)
+  const HIDDEN_NAMES=['wysdom doom']; // add names here to hide from public view
   const visible=all.filter(e=>{
-    const email=(e.trainer?.email||'').toLowerCase();
-    const name=(e.trainer?.name||'').toLowerCase();
+    const email=(e.trainer.email||'').toLowerCase();
+    const name=(e.trainer.name||'').toLowerCase();
     if(hiddenEmails.includes(email)) return false;
     if(HIDDEN_NAMES.includes(name)) return false;
     return true;
@@ -1180,21 +1350,29 @@ async function loadBoard(all){
   }
 
   const myEmail=currentUser?currentUser.email.toLowerCase():null;
+
   grid.innerHTML='';
   visible.forEach((entry,idx)=>{
-    const t=entry.trainer||{}, team=Array.isArray(entry.team)?entry.team:[];
+    const t=entry.trainer, team=Array.isArray(entry.team)?entry.team:[];
     const isMe=myEmail&&(t.email||'').toLowerCase()===myEmail;
     const date=entry.registeredAt?new Date(entry.registeredAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'';
     const hasTeam=team.length===6;
 
+    // Team section
     let teamHtml;
-    if(!hasTeam) teamHtml=`<div class="no-team-yet">⏳ Team not submitted yet</div>`;
-    else if(!rev&&!isMe) teamHtml=`<div class="locked-team">🔒 Hidden until Mar 22, 2026</div>`;
-    else teamHtml=`<div class="tc-pokemon-grid">${team.map(p=>`<div class="tc-pmon${p.shadow?' sh':''}">
-      ${mkImgHtml(p.id,52,52,p.shadow)}
-      <div class="tc-pmon-name">${esc(p.name)}</div>
-      ${p.shadow?'<div class="tc-shadow-icon">🌑 Shadow</div>':'<div class="tc-normal-icon">Normal</div>'}
-    </div>`).join('')}</div>`;
+    if(!hasTeam){
+      teamHtml=`<div class="no-team-yet">⏳ Team not submitted yet</div>`;
+    } else if(!rev&&!isMe){
+      teamHtml=`<div class="locked-team">🔒 Hidden until Mar 22, 2026</div>`;
+    } else {
+      // Show team grid with sprites
+      teamHtml=`<div class="tc-pokemon-grid">${team.map(p=>`
+        <div class="tc-pmon${p.shadow?' sh':''}">
+          ${mkImgHtml(p.id,52,52,p.shadow)}
+          <div class="tc-pmon-name">${esc(p.name)}</div>
+          ${p.shadow?'<div class="tc-shadow-icon">🌑 Shadow</div>':'<div class="tc-normal-icon">Normal</div>'}
+        </div>`).join('')}</div>`;
+    }
 
     const card=document.createElement('div');
     card.className=`tr-card${isMe?' mine':''}`;
@@ -1204,14 +1382,14 @@ async function loadBoard(all){
       <div class="tc-top">
         <div class="tc-av${isMe?' mine-av':''}">${isMe?'⭐':'🎮'}</div>
         <div>
-          <div class="tc-name">${esc(t.name||'')}</div>
+          <div class="tc-name">${esc(t.name)}</div>
           <div class="tc-email">${isMe?esc(t.email||''):''}</div>
           <div class="tc-reg">${date?'Joined '+date:''}</div>
         </div>
       </div>
       <div class="tc-stats">
-        <div class="tc-stat">Level<span>${esc(String(t.level||''))}</span></div>
-        <div class="tc-stat">Code<span>${esc(t.code||'')}</span></div>
+        <div class="tc-stat">Level<span>${esc(String(t.level))}</span></div>
+        <div class="tc-stat">Code<span>${esc(t.code)}</span></div>
         ${(rev||isMe)&&hasTeam?`<div class="tc-stat">Shadow<span>${team.filter(p=>p.shadow).length}</span></div>`:''}
       </div>
       <div class="tc-team-section">
@@ -1222,9 +1400,9 @@ async function loadBoard(all){
   });
 }
 
-// ══════════════════════════════════════════════
-// FLOATING SPRITES
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// FLOATING HERO SPRITES
+// ═══════════════════════════════════════════════════════
 function initFloats(){
   const c=document.getElementById('floatSprites');
   const mons=[{id:25,s:64},{id:6,s:64},{id:9,s:54},{id:3,s:54},{id:149,s:50},{id:94,s:50},{id:131,s:46},{id:143,s:46},{id:150,s:42},{id:130,s:42}];
@@ -1240,26 +1418,32 @@ function initFloats(){
   });
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // PICKER
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function buildPickerHtml(si){
   const slot=slots[si];
   const taken=slots.filter((_,k)=>k!==si).map(s=>s.id).filter(Boolean);
+  // Use String comparison so both numeric and string IDs ("19-a") match correctly
   const cur=POKE.find(p=>String(p.id)===String(slot.id));
   const locked=isTournamentStarted();
+
   const btnInner=cur
-    ?`${mkImgHtml(cur.id,28,28,false)} <span class="pb-name">${esc(cur.n)}</span><span class="pb-arr">▼</span>`
-    :`<span class="pb-name" style="color:var(--text-dim)">— Select Pokémon —</span><span class="pb-arr">▼</span>`;
+    ? `${mkImgHtml(cur.id,28,28,false)} <span class="pb-name">${esc(cur.n)}</span><span class="pb-arr">▼</span>`
+    : `<span class="pb-name" style="color:var(--text-dim)">— Select Pokémon —</span><span class="pb-arr">▼</span>`;
+
   const items=POKE.map(p=>{
+    // String-compare IDs so "19-a" !== "19" (correct) and "19-a" === "19-a" (correct)
     const dis=taken.some(t=>String(t)===String(p.id));
     const sel=String(p.id)===String(slot.id);
+    // Always quote p.id in onclick so string IDs like "19-a" don't break JS syntax
     return `<div class="pd-item${dis?' dis':''}${sel?' sel':''}" onclick="pickMon(${si},'${p.id}')">
       ${mkImgHtml(p.id,30,30,false)}
       <span class="pd-num">#${String(p.id).replace(/[^0-9]/g,'').padStart(3,'0')}</span>
       ${esc(p.n)}
     </div>`;
   }).join('');
+
   return `<div class="picker-wrap" id="pw${si}">
     <button type="button" class="picker-btn${locked?' btn-disabled':''}" id="pb${si}" onclick="${locked?'void(0)':'togPicker('+si+',event)'}" ${locked?'disabled':''}>
       ${btnInner}
@@ -1270,6 +1454,7 @@ function buildPickerHtml(si){
     </div>
   </div>`;
 }
+
 function togPicker(si,e){
   e&&e.stopPropagation();
   if(isTournamentStarted()) return;
@@ -1280,9 +1465,11 @@ function togPicker(si,e){
 }
 function closeAllPickers(){ document.querySelectorAll('.picker-dd.open').forEach(d=>d.classList.remove('open')); document.querySelectorAll('.picker-btn.open').forEach(b=>b.classList.remove('open')); openPicker=null; }
 function filtPicker(si,q){ const l=document.getElementById(`pd${si}`)?.querySelector('.pd-list'); if(!l) return; const lq=q.toLowerCase(); l.querySelectorAll('.pd-item').forEach(el=>{ el.style.display=el.textContent.toLowerCase().includes(lq)?'':'none'; }); }
+
 function pickMon(si,pid){
   if(isTournamentStarted()) return;
   const taken=slots.filter((_,k)=>k!==si).map(s=>s.id);
+  // String-compare so "19-a" !== 19 (different forms allowed) but "19-a" === "19-a" blocked
   if(taken.some(t=>String(t)===String(pid))){ showAlert('dupAlert',`⚠️ ${monName(pid)} is already in another slot!`,'error'); return; }
   clearAlert('dupAlert');
   slots[si].id=pid;
@@ -1291,9 +1478,9 @@ function pickMon(si,pid){
   updateProg();
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // TEAM GRID
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function buildGrid(){
   const g=document.getElementById('teamGrid');
   if(!g) return;
@@ -1303,14 +1490,22 @@ function buildGrid(){
     const div=document.createElement('div');
     div.className=`slot-card${sl.id?' has-mon':''}${sl.shadow?' shad':''}`;
     div.id=`slot${i}`;
+
+    // Sprite ring
     const ring=document.createElement('div');
     ring.className='sprite-ring'; ring.id=`sr${i}`;
-    if(sl.id){ ring.appendChild(mkImgEl(sl.id,68,68,sl.shadow)); }
-    else{ const ph=document.createElement('span'); ph.className='sph'; ph.textContent='?'; ring.appendChild(ph); }
-    div.innerHTML=`<div class="slot-head">
-      <span class="slot-num">SLOT 0${i+1}</span>
-      <span class="slot-badge${sl.shadow?' shad':''}" id="sb${i}">${sl.shadow?'🌑 Shadow':'⚡ Normal'}</span>
-    </div>`;
+    if(sl.id){
+      const img=mkImgEl(sl.id,68,68,sl.shadow);
+      ring.appendChild(img);
+    } else {
+      const ph=document.createElement('span'); ph.className='sph'; ph.textContent='?'; ring.appendChild(ph);
+    }
+
+    div.innerHTML=`
+      <div class="slot-head">
+        <span class="slot-num">SLOT 0${i+1}</span>
+        <span class="slot-badge${sl.shadow?' shad':''}" id="sb${i}">${sl.shadow?'🌑 Shadow':'⚡ Normal'}</span>
+      </div>`;
     div.appendChild(ring);
     div.innerHTML+=buildPickerHtml(i);
     div.innerHTML+=`<div class="tog-row">
@@ -1321,6 +1516,7 @@ function buildGrid(){
   });
   updateProg();
 }
+
 function togShadow(si,on){
   if(isTournamentStarted()) return;
   slots[si].shadow=on;
@@ -1336,75 +1532,72 @@ function togShadow(si,on){
     sr.style.boxShadow=on?'0 0 14px rgba(155,48,255,.45)':'none';
   }
 }
+
 function updateProg(){
   const n=slots.filter(s=>s.id).length;
   const pf=document.getElementById('progFill'); if(pf) pf.style.width=(n/SLOTS*100)+'%';
   const pl=document.getElementById('progLbl');  if(pl) pl.textContent=`${n} / ${SLOTS} Pokémon Selected`;
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // SUBMIT / EDIT
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 async function submitTeam(){
   clearAlert('subAlert');
   if(!currentUser){ showAlert('subAlert','⚠️ Please login first.','error'); return; }
-  if(isTournamentStarted()){ showAlert('subAlert','🔒 Team editing is locked.','warn'); return; }
+  if(isTournamentStarted()){ showAlert('subAlert','🔒 Team editing is locked because the tournament has started.','warn'); return; }
   const filled=slots.filter(s=>s.id);
   if(filled.length<SLOTS){ showAlert('subAlert',`⚠️ Select all 6 Pokémon — you have ${filled.length}.`,'error'); return; }
   if(new Set(slots.map(s=>s.id)).size<SLOTS){ showAlert('subAlert','⚠️ Duplicate Pokémon detected!','error'); return; }
 
-  showAlert('subAlert','⏳ Saving to Firebase...','info');
   const team=slots.map(s=>({id:s.id,name:monName(s.id),shadow:s.shadow}));
-  const fb=await waitFb();
-  const all=await fb.getTrainers();
-  const existing=all.find(e=>(e.trainer?.email||'').toLowerCase()===currentUser.email);
-  const entry={
-    trainer:{email:currentUser.email,name:currentUser.name,level:currentUser.level,code:currentUser.code},
-    team,
-    registeredAt:existing?.registeredAt||new Date().toISOString(),
-    updatedAt:new Date().toISOString(),
-    _key:currentUser._key||window._emailToKey(currentUser.email)
-  };
-  await fb.upsertTrainer(entry);
-  showAlert('subAlert','⚡ Team saved to Firebase! Your entry is live.','success');
+  const all=await dbGetTrainers(), settings=await dbGetSettings();
+  const idx=all.findIndex(e=>(e.trainer.email||'').toLowerCase()===currentUser.email);
+  if(idx>=0){ all[idx].team=team; all[idx].updatedAt=new Date().toISOString(); }
+  else {
+    all.push({trainer:{email:currentUser.email,name:currentUser.name,level:currentUser.level,code:currentUser.code},team,registeredAt:new Date().toISOString()});
+  }
+  await dbSaveAll(all,settings);
+  showAlert('subAlert','⚡ Team submitted! Your entry is live in the roster.','success');
   document.getElementById('submitBtn').style.display='none';
   document.getElementById('editBtn').style.display='';
   renderPreview({trainer:{...currentUser},team});
+  loadBoard();
+  setTimeout(()=>document.getElementById('trainers').scrollIntoView({behavior:'smooth'}),900);
 }
 
 function activateEdit(){
-  if(isTournamentStarted()){ showAlert('subAlert','🔒 Team editing is locked.','warn'); return; }
+  if(isTournamentStarted()){ showAlert('subAlert','🔒 Team editing is locked because the tournament has started.','warn'); return; }
   document.getElementById('submitBtn').style.display='';
   document.getElementById('editBtn').style.display='none';
   document.getElementById('builder').scrollIntoView({behavior:'smooth'});
   showAlert('subAlert','✏️ Edit mode — update your team then click Submit again.','info');
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // PREVIEW
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 async function loadPreviewForUser(){
   if(!currentUser) return;
-  const fb=await waitFb();
-  const all=await fb.getTrainers();
-  const entry=all.find(e=>(e.trainer?.email||'').toLowerCase()===currentUser.email);
-  if(entry&&entry.team&&entry.team.length===6){
-    renderPreview({trainer:entry.trainer,team:entry.team});
-    document.getElementById('submitBtn').style.display='none';
-    document.getElementById('editBtn').style.display='';
-  }
+  const all=await dbGetTrainers();
+  const entry=all.find(e=>(e.trainer.email||'').toLowerCase()===currentUser.email);
+  if(entry&&entry.team&&entry.team.length===6){ renderPreview({trainer:entry.trainer,team:entry.team}); }
 }
+
 function renderPreview(data){
   const area=document.getElementById('pvArea'); if(!area) return;
-  const t=data.trainer,team=data.team,rev=isRevealed();
-  const teamHtml=(rev||true) // always show own team
-    ?`<div class="pv-team">${team.map(p=>`<div class="pv-mon${p.shadow?' sh':''}">
-      ${mkImgHtml(p.id,80,80,p.shadow)}
-      <div class="pv-mon-name">${esc(p.name)}</div>
-      <span class="pv-status ${p.shadow?'st-s':'st-n'}">${p.shadow?'🌑 Shadow':'Normal'}</span>
-    </div>`).join('')}</div>`
-    :`<div class="pv-locked"><div class="locked-team" style="justify-content:center;padding:1.4rem">🔒 Team locked until March 22, 2026</div></div>`;
-  area.innerHTML=`<div class="pv-card">
+  const t=data.trainer, team=data.team, rev=isRevealed(), isMe=true;
+  const teamHtml=(rev||isMe)
+    ? `<div class="pv-team">${team.map(p=>`
+        <div class="pv-mon${p.shadow?' sh':''}">
+          ${mkImgHtml(p.id,80,80,p.shadow)}
+          <div class="pv-mon-name">${esc(p.name)}</div>
+          <span class="pv-status ${p.shadow?'st-s':'st-n'}">${p.shadow?'🌑 Shadow':'Normal'}</span>
+        </div>`).join('')}</div>`
+    : `<div class="pv-locked"><div class="locked-team" style="justify-content:center;padding:1.4rem">🔒 Team locked until March 22, 2026</div></div>`;
+
+  area.innerHTML=`
+  <div class="pv-card">
     <div class="pv-head">
       <div class="pv-avatar">⭐</div>
       <div class="pv-info">
@@ -1413,7 +1606,7 @@ function renderPreview(data){
         <div class="pv-meta">
           <div class="pv-meta-it">Level<span>${esc(String(t.level))}</span></div>
           <div class="pv-meta-it">Code<span>${esc(t.code)}</span></div>
-          <div class="pv-meta-it">Shadow<span>${team.filter(p=>p.shadow).length}</span></div>
+          ${(rev||isMe)?`<div class="pv-meta-it">Shadow<span>${team.filter(p=>p.shadow).length}</span></div>`:''}
         </div>
       </div>
     </div>
@@ -1428,17 +1621,18 @@ function renderPreview(data){
     </div>
   </div>`;
 }
+
 async function copyTeam(){
   if(!currentUser) return;
-  const fb=await waitFb();
-  const all=await fb.getTrainers();
-  const entry=all.find(e=>(e.trainer?.email||'').toLowerCase()===currentUser.email);
+  const all=await dbGetTrainers();
+  const entry=all.find(e=>(e.trainer.email||'').toLowerCase()===currentUser.email);
   if(!entry) return;
-  const t=entry.trainer;
+  const t=entry.trainer,rev=isRevealed();
   let txt=`⚡ Palakkad PvP League 2026\nTrainer: ${t.name} | Lv.${t.level} | Code: ${t.code}\nEmail: ${t.email||''}\n`;
-  if(entry.team?.length===6){ txt+='\nTeam:\n'; entry.team.forEach((p,i)=>{txt+=`${i+1}. ${p.name} — ${p.shadow?'Shadow':'Normal'}\n`;}); }
+  if(rev&&entry.team&&entry.team.length===6){ txt+='\nTeam:\n'; entry.team.forEach((p,i)=>{txt+=`${i+1}. ${p.name} — ${p.shadow?'Shadow':'Normal'}\n`;}); }
   navigator.clipboard.writeText(txt).then(()=>alert('Copied!')).catch(()=>prompt('Copy:',txt));
 }
+
 function resetAll(){
   if(!confirm('Reset team slots? Your account stays active.')) return;
   slots=Array.from({length:SLOTS},()=>({id:null,shadow:false}));
@@ -1448,66 +1642,65 @@ function resetAll(){
   document.getElementById('pvArea').innerHTML='<div class="pv-empty"><div style="font-size:4rem">⊙</div><p>Submit your team above.</p></div>';
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // ADMIN
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function admLogin(){ if(gval('admPw')===ADMIN_PW){ document.getElementById('admLoginWrap').style.display='none'; document.getElementById('admPanel').classList.add('vis'); loadAdmPanel(); } else showAlert('admPwErr','❌ Incorrect password.','error'); }
 function admLogout(){ document.getElementById('admLoginWrap').style.display=''; document.getElementById('admPanel').classList.remove('vis'); sval('admPw',''); }
 
 async function loadAdmPanel(){
-  const fb=await waitFb();
-  const settings=await fb.getSettings();
+  const data=await dbGet();
+  const settings=data.settings||{startDate:'2026-03-22',hiddenEmails:[]};
   sval('admStartDate',settings.startDate||'2026-03-22');
-  const all=await fb.getTrainers();
-  loadHiddenList(all,settings.hiddenEmails||[]);
+  loadHiddenList(data.trainers||[],settings.hiddenEmails||[]);
   loadAdmTable();
 }
 
 async function saveAdmDate(){
   const d=gval('admStartDate');
   if(!d){ showAlert('admDateMsg','⚠️ Pick a valid date.','error'); return; }
-  const fb=await waitFb();
-  const settings=await fb.getSettings();
-  settings.startDate=d;
-  await fb.setSettings(settings);
+  const data=await dbGet();
+  data.settings=data.settings||{};
+  data.settings.startDate=d;
   REVEAL_DATE=new Date(d+'T00:00:00');
-  showAlert('admDateMsg',`✅ Tournament start date set to ${d}.`,'success');
-  document.getElementById('cdSub').textContent=`Teams are locked until ${d}`;
+  await dbSet(data);
+  showAlert('admDateMsg',`✅ Tournament start date set to ${d}. Teams lock on this date.`,'success');
+  document.querySelector('.cd-sub').textContent=`Teams are locked until ${d}`;
 }
 
 function loadHiddenList(all,hiddenEmails){
   const wrap=document.getElementById('hiddenList');
   const he=hiddenEmails.map(e=>e.toLowerCase());
-  const hidden=all.filter(e=>he.includes((e.trainer?.email||'').toLowerCase()));
+  const hidden=all.filter(e=>he.includes((e.trainer.email||'').toLowerCase()));
   if(!hidden.length){ wrap.innerHTML='<p style="color:var(--text-dim);font-size:13px">No entries currently hidden.</p>'; return; }
-  wrap.innerHTML=hidden.map(e=>`<div class="hidden-toggle-row" style="margin-bottom:.5rem">
-    <span class="hidden-tag">🔒 Hidden</span>
-    <span style="font-weight:700;color:var(--yellow)">${esc(e.trainer?.name||'')}</span>
-    <span style="color:var(--text-dim);font-size:12px">${esc(e.trainer?.email||'')}</span>
-    <button class="btn btn-sm btn-green" onclick="unhideEntry('${esc(e.trainer?.email||'')}')">👁️ Unhide</button>
-  </div>`).join('');
+  wrap.innerHTML=hidden.map((e,_)=>`
+    <div class="hidden-toggle-row" style="margin-bottom:.5rem">
+      <span class="hidden-tag">🔒 Hidden</span>
+      <span style="font-weight:700;color:var(--yellow)">${esc(e.trainer.name)}</span>
+      <span style="color:var(--text-dim);font-size:12px">${esc(e.trainer.email||'')}</span>
+      <button class="btn btn-sm btn-green" onclick="unhideEntry('${esc(e.trainer.email||'')}')">👁️ Unhide</button>
+    </div>`).join('');
 }
 
 async function unhideEntry(email){
-  const fb=await waitFb();
-  const settings=await fb.getSettings();
-  settings.hiddenEmails=(settings.hiddenEmails||[]).filter(e=>e.toLowerCase()!==email.toLowerCase());
-  await fb.setSettings(settings);
-  showAlert('admHideMsg',`✅ "${email}" is now visible.`,'success');
-  loadAdmPanel();
+  const data=await dbGet();
+  data.settings=data.settings||{};
+  data.settings.hiddenEmails=(data.settings.hiddenEmails||[]).filter(e=>e.toLowerCase()!==email.toLowerCase());
+  await dbSet(data);
+  showAlert('admHideMsg',`✅ "${email}" is now visible in the roster.`,'success');
+  loadAdmPanel(); loadBoard();
 }
 
 async function loadAdmTable(){
   const wrap=document.getElementById('admTblWrap');
-  const fb=await waitFb();
-  const all=await fb.getTrainers();
-  const settings=await fb.getSettings();
+  const data=await dbGet(); const all=data.trainers||[];
+  const settings=data.settings||{hiddenEmails:[]};
   const he=(settings.hiddenEmails||[]).map(e=>e.toLowerCase());
   if(!all.length){ wrap.innerHTML='<div class="empty-tbl">No trainers registered yet.</div>'; return; }
   wrap.innerHTML=`<table class="adm-tbl">
     <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Lv</th><th>Code</th><th>Team</th><th>Date</th><th>Actions</th></tr></thead>
     <tbody>${all.map((e,i)=>{
-      const t=e.trainer||{},team=Array.isArray(e.team)?e.team:[];
+      const t=e.trainer,team=Array.isArray(e.team)?e.team:[];
       const dt=e.registeredAt?new Date(e.registeredAt).toLocaleDateString('en-GB'):'—';
       const isHidden=he.includes((t.email||'').toLowerCase());
       const teamCell=team.length===6
@@ -1515,117 +1708,109 @@ async function loadAdmTable(){
         :`<span style="color:var(--text-dim);font-size:12px">No team</span>`;
       return `<tr>
         <td style="color:var(--text-dim)">${i+1}</td>
-        <td style="color:var(--yellow);font-weight:700">${esc(t.name||'')}${isHidden?` <span class="hidden-tag">Hidden</span>`:''}</td>
+        <td style="color:var(--yellow);font-weight:700">${esc(t.name)}${isHidden?` <span class="hidden-tag">Hidden</span>`:''}</td>
         <td style="font-size:12px;color:var(--blue)">${esc(t.email||'—')}</td>
-        <td>${esc(String(t.level||''))}</td>
-        <td style="font-size:12px">${esc(t.code||'')}</td>
+        <td>${esc(String(t.level))}</td>
+        <td style="font-size:12px">${esc(t.code)}</td>
         <td>${teamCell}</td>
         <td style="font-size:12px;color:var(--text-dim)">${dt}</td>
         <td><div class="adm-acts">
-          <button class="btn btn-sm btn-outline" onclick="openModal('${e._key}','${esc(t.name||'')}','${esc(String(t.level||''))}','${esc(t.code||'')}')">✏️</button>
+          <button class="btn btn-sm btn-outline" onclick="openModal(${i})">✏️</button>
           ${isHidden
-            ?`<button class="btn btn-sm btn-green" onclick="admToggleHide('${esc(t.email||'')}',false)">👁️</button>`
-            :`<button class="btn btn-sm btn-danger" onclick="admToggleHide('${esc(t.email||'')}',true)">🙈</button>`}
-          <button class="btn btn-sm btn-danger" onclick="admDel('${e._key}')">🗑️</button>
+            ?`<button class="btn btn-sm btn-green" onclick="admToggleHide(${i},false)">👁️</button>`
+            :`<button class="btn btn-sm btn-danger" title="Hide from roster" onclick="admToggleHide(${i},true)">🙈</button>`}
+          <button class="btn btn-sm btn-danger" onclick="admDel(${i})">🗑️</button>
         </div></td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
 }
 
-async function admToggleHide(email,hide){
-  const fb=await waitFb();
-  const settings=await fb.getSettings();
-  settings.hiddenEmails=settings.hiddenEmails||[];
-  const low=email.toLowerCase();
-  if(hide){ if(!settings.hiddenEmails.includes(low)) settings.hiddenEmails.push(low); }
-  else { settings.hiddenEmails=settings.hiddenEmails.filter(e=>e.toLowerCase()!==low); }
-  await fb.setSettings(settings);
-  loadAdmPanel();
+async function admToggleHide(i,hide){
+  const data=await dbGet(); const all=data.trainers||[];
+  if(!all[i]) return;
+  const email=(all[i].trainer.email||'').toLowerCase();
+  data.settings=data.settings||{hiddenEmails:[]};
+  data.settings.hiddenEmails=data.settings.hiddenEmails||[];
+  if(hide){ if(!data.settings.hiddenEmails.includes(email)) data.settings.hiddenEmails.push(email); }
+  else { data.settings.hiddenEmails=data.settings.hiddenEmails.filter(e=>e.toLowerCase()!==email); }
+  await dbSet(data);
+  loadAdmPanel(); loadBoard();
 }
 
-async function admDel(key){
-  if(!confirm('Permanently delete this trainer?')) return;
-  const fb=await waitFb();
-  await fb.deleteTrainer(key);
-  loadAdmTable();
+async function admDel(i){
+  const all=await dbGetTrainers(); if(!all[i]) return;
+  if(!confirm(`Permanently delete "${all[i].trainer.name}"?`)) return;
+  all.splice(i,1); const settings=await dbGetSettings(); await dbSaveAll(all,settings);
+  loadAdmTable(); loadBoard();
 }
 
 async function admAdd(){
   const email=gval('aMail').toLowerCase(),name=gval('aN'),level=gval('aL'),code=gval('aC');
   if(!email||!validEmail(email)||!name||!level||!code||isNaN(+level)||+level<1||+level>80){
-    showAlert('admAddMsg','⚠️ All fields required. Email valid. Level 1–80.','error'); return;
+    showAlert('admAddMsg','⚠️ All fields required. Email must be valid. Level 1–80.','error'); return;
   }
-  const fb=await waitFb();
-  const all=await fb.getTrainers();
-  if(all.find(e=>(e.trainer?.email||'').toLowerCase()===email)){ showAlert('admAddMsg','⚠️ Email already exists.','error'); return; }
-  const key=window._emailToKey(email);
-  await fb.upsertTrainer({trainer:{email,name,level,code},team:[],registeredAt:new Date().toISOString(),_key:key});
+  const all=await dbGetTrainers();
+  if(all.find(e=>(e.trainer.email||'').toLowerCase()===email)){ showAlert('admAddMsg','⚠️ Email already exists.','error'); return; }
+  all.push({trainer:{email,name,level,code},team:[],registeredAt:new Date().toISOString()});
+  const settings=await dbGetSettings(); await dbSaveAll(all,settings);
   sval('aMail',''); sval('aN',''); sval('aL',''); sval('aC','');
   showAlert('admAddMsg',`✅ Trainer "${esc(name)}" added.`,'success');
-  loadAdmTable();
+  loadAdmTable(); loadBoard();
 }
 
-function openModal(key,name,level,code){
-  sval('mName',name); sval('mLevel',level); sval('mCode',code); sval('mKey',key);
-  clearAlert('mAlert'); document.getElementById('editModal').classList.add('open');
+function openModal(i){
+  dbGetTrainers().then(all=>{
+    if(!all[i]) return;
+    const t=all[i].trainer;
+    sval('mName',t.name); sval('mLevel',t.level); sval('mCode',t.code); sval('mIdx',i);
+    clearAlert('mAlert'); document.getElementById('editModal').classList.add('open');
+  });
 }
 function closeModal(){ document.getElementById('editModal').classList.remove('open'); }
 async function saveModal(){
-  const name=gval('mName'),level=gval('mLevel'),code=gval('mCode'),key=gval('mKey');
+  const name=gval('mName'),level=gval('mLevel'),code=gval('mCode'),i=+gval('mIdx');
   if(!name||!level||!code||isNaN(+level)||+level<1||+level>80){ showAlert('mAlert','⚠️ All fields required. Level 1–80.','error'); return; }
-  const fb=await waitFb();
-  const all=await fb.getTrainers();
-  const entry=all.find(e=>e._key===key);
-  if(!entry){ showAlert('mAlert','⚠️ Not found — refresh.','error'); return; }
-  entry.trainer.name=name; entry.trainer.level=level; entry.trainer.code=code; entry.updatedAt=new Date().toISOString();
-  await fb.upsertTrainer(entry);
-  closeModal(); loadAdmTable();
+  const all=await dbGetTrainers(); if(!all[i]){ showAlert('mAlert','⚠️ Not found — refresh.','error'); return; }
+  all[i].trainer.name=name; all[i].trainer.level=level; all[i].trainer.code=code; all[i].updatedAt=new Date().toISOString();
+  const settings=await dbGetSettings(); await dbSaveAll(all,settings);
+  closeModal(); loadAdmTable(); loadBoard();
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // NAV
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 document.getElementById('navToggle').addEventListener('click',()=>document.getElementById('navLinks').classList.toggle('open'));
 document.querySelectorAll('.nav-links a').forEach(a=>a.addEventListener('click',()=>document.getElementById('navLinks').classList.remove('open')));
 document.addEventListener('click',e=>{ if(openPicker!==null&&!e.target.closest('.picker-wrap')) closeAllPickers(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeAllPickers(); closeModal(); } });
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // INIT
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded',async()=>{
-  const fb=await waitFb();
-
   // Restore session
   try{
     const saved=sessionStorage.getItem('pplUser');
     if(saved){
       currentUser=JSON.parse(saved);
-      const all=await fb.getTrainers();
-      const entry=all.find(e=>(e.trainer?.email||'').toLowerCase()===currentUser.email);
-      if(entry){
-        currentUser._key=entry._key;
-        if(entry.team&&entry.team.length===6) slots=entry.team.map(p=>({id:p.id,shadow:p.shadow}));
-      }
+      // Re-load their team from DB
+      const all=await dbGetTrainers();
+      const entry=all.find(e=>(e.trainer.email||'').toLowerCase()===currentUser.email);
+      if(entry&&entry.team&&entry.team.length===6){ slots=entry.team.map(p=>({id:p.id,shadow:p.shadow})); }
       onLoginSuccess();
     }
   } catch(_){}
 
-  // Load settings
+  // Load settings (start date)
   try{
-    const s=await fb.getSettings();
+    const s=await dbGetSettings();
     if(s.startDate){ REVEAL_DATE=new Date(s.startDate+'T00:00:00'); sval('admStartDate',s.startDate); }
   } catch(_){}
 
-  // Real-time roster updates
-  fb.onTrainersChange(all=>loadBoard(all));
-  fb.onSettingsChange(s=>{
-    if(s.startDate){ REVEAL_DATE=new Date(s.startDate+'T00:00:00'); }
-  });
-
-  initFloats();
+  initFloats(); loadBoard();
   tickCountdown(); setInterval(tickCountdown,1000);
+  setInterval(loadBoard,30000);
 });
 </script>
 </body>
