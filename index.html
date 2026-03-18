@@ -404,6 +404,13 @@ label{font-family:var(--fb);font-weight:600;font-size:12px;text-transform:upperc
 .bmc-edit-btn{margin-left:auto;font-family:var(--fm);font-size:9px;color:var(--text-dim);background:none;border:none;cursor:pointer;padding:2px 5px;transition:color .15s;white-space:nowrap}
 .bmc-edit-btn:hover{color:var(--yellow)}
 
+/* BYE / direct advance card */
+.bmc.bye-match{border-left-color:rgba(255,136,0,.5);opacity:.85}
+.bmc-bye-banner{background:rgba(255,136,0,.09);border-top:1px solid rgba(255,136,0,.2);padding:5px 8px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.bmc-bye-tag{font-family:var(--fm);font-size:9px;color:var(--orange);letter-spacing:1.5px;text-transform:uppercase}
+.bmc-bye-adm{font-family:var(--fm);font-size:9px;color:var(--text-dim);background:none;border:none;cursor:pointer;padding:2px 5px;transition:color .15s;white-space:nowrap}
+.bmc-bye-adm:hover{color:var(--yellow)}
+
 /* MATCH CARDS (legacy — kept for compatibility) */
 .mc-mon{width:28px;height:28px;border-radius:5px;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .mc-mon img{width:26px;height:26px;object-fit:contain}
@@ -1602,7 +1609,14 @@ function buildBracket(participants){
     if(i%2===0){
       const a=arr[i],b=arr[i+1];
       const m=mk('wb',{key:a.key,name:a.name,level:a.level},{key:b.key,name:b.name,level:b.level});
-      if(a.key==='BYE'){m.winB=2;m.done=true;}else if(b.key==='BYE'){m.winA=2;m.done=true;}
+      // BYE match — auto-grant win to real player, tag as bye
+      if(a.key==='BYE'&&b.key!=='BYE'){
+        m.winB=2;m.winA=0;m.done=true;m.isBye=true;m.byeWinner=b.key;
+      } else if(b.key==='BYE'&&a.key!=='BYE'){
+        m.winA=2;m.winB=0;m.done=true;m.isBye=true;m.byeWinner=a.key;
+      } else if(a.key==='BYE'&&b.key==='BYE'){
+        m.winA=2;m.done=true;m.isBye=true;m.byeWinner='BYE';
+      }
       acc.push(m);
     }
     return acc;
@@ -1614,8 +1628,6 @@ function buildBracket(participants){
   }
 
   // ── LB ──
-  // LB R1: pairs of WB R1 losers
-  // Then alternating: drop-in from WB + pure LB round
   const lb=[];
   if(r1.length>=2){
     lb.push(Array.from({length:Math.ceil(r1.length/2)},()=>mk('lb')));
@@ -1633,25 +1645,42 @@ function buildBracket(participants){
 }
 
 // Propagate results through the bracket tree
+// Also auto-detects matches where only one slot is filled (bye in LB/later WB rounds)
+// and marks them as isBye + auto-advances
 function propagateBracket(){
   if(!bracketData)return;
   const{wb,lb,gf}=bracketData;
 
+  // Helper: auto-resolve a match if it has exactly one real player and one BYE/TBD
+  function autoResolveBye(match){
+    if(match.done) return; // already resolved, respect existing result
+    const aReal=match.playerA&&!['TBD','BYE'].includes(match.playerA.key);
+    const bReal=match.playerB&&!['TBD','BYE'].includes(match.playerB.key);
+    if(aReal&&!bReal){
+      // Player A gets bye win
+      match.winA=2;match.winB=0;match.done=true;match.isBye=true;match.byeWinner=match.playerA.key;
+    } else if(!aReal&&bReal){
+      // Player B gets bye win
+      match.winB=2;match.winA=0;match.done=true;match.isBye=true;match.byeWinner=match.playerB.key;
+    }
+  }
+
   // WB propagation
   (wb||[]).forEach((round,ri)=>{
+    round.forEach(m=>autoResolveBye(m)); // auto-bye before propagating
     round.forEach((match,mi)=>{
       if(!match.done)return;
       const winner=match.winA>=2?match.playerA:match.playerB;
       const loser=match.winA>=2?match.playerB:match.playerA;
-      // Advance winner
+      // Advance winner to next WB round
       if(ri+1<wb.length){
         const nm=wb[ri+1][Math.floor(mi/2)];
         if(mi%2===0)nm.playerA={...winner};else nm.playerB={...winner};
       } else {
-        if(gf&&winner.key!=='BYE')gf.playerA={...winner};
+        if(gf&&winner.key!=='BYE'&&winner.key!=='TBD')gf.playerA={...winner};
       }
-      // Drop loser to LB
-      if(loser.key!=='BYE'&&loser.key!=='TBD'){
+      // Drop loser to LB (only if it was a real match, not a bye)
+      if(!match.isBye&&loser.key!=='BYE'&&loser.key!=='TBD'){
         const lbTargetRound=ri*2;
         if(lb&&lbTargetRound<lb.length){
           const lbRound=lb[lbTargetRound];
@@ -1667,6 +1696,7 @@ function propagateBracket(){
 
   // LB propagation
   (lb||[]).forEach((round,ri)=>{
+    round.forEach(m=>autoResolveBye(m)); // auto-bye for LB solo player
     round.forEach((match,mi)=>{
       if(!match.done)return;
       const winner=match.winA>=2?match.playerA:match.playerB;
@@ -1678,6 +1708,9 @@ function propagateBracket(){
       }
     });
   });
+
+  // Auto-bye for GF if one side is still TBD but the other is filled
+  autoResolveBye(gf);
 }
 
 // ═══════════════════════════════════════════
@@ -1686,13 +1719,22 @@ function propagateBracket(){
 function calcStandings(participants,wb,lb,gf){
   const map={};
   (participants||[]).filter(p=>p.key!=='BYE').forEach(p=>{
-    map[p.key]={key:p.key,name:p.name,level:p.level,matchWins:0,matchLoss:0,gameWins:0,gameLoss:0,played:0};
+    map[p.key]={key:p.key,name:p.name,level:p.level,matchWins:0,matchLoss:0,gameWins:0,gameLoss:0,played:0,byeWins:0};
   });
   const proc=(match)=>{
     if(!match||!match.done)return;
     const wA=match.winA||0,wB=match.winB||0;
     const ka=match.playerA?.key,kb=match.playerB?.key;
-    if(!ka||!kb||['TBD','BYE'].includes(ka)||['TBD','BYE'].includes(kb))return;
+    if(!ka||!kb)return;
+    // Bye match: count as match win for the real player, no game stats
+    if(match.isBye){
+      const winnerKey=match.byeWinner&&match.byeWinner!=='BYE'
+        ? match.byeWinner
+        : (wA>=2?ka:kb);
+      if(map[winnerKey]){map[winnerKey].matchWins++;map[winnerKey].byeWins++;}
+      return;
+    }
+    if(['TBD','BYE'].includes(ka)||['TBD','BYE'].includes(kb))return;
     if(map[ka]){map[ka].gameWins+=wA;map[ka].gameLoss+=wB;map[ka].played++;}
     if(map[kb]){map[kb].gameWins+=wB;map[kb].gameLoss+=wA;map[kb].played++;}
     if(wA>=2){if(map[ka])map[ka].matchWins++;if(map[kb])map[kb].matchLoss++;}
@@ -1740,7 +1782,7 @@ function renderStandings(){
       <td><div class="pos-badge ${pc}">${i<3?medal[i]:i+1}</div></td>
       <td><div style="display:flex;align-items:center;gap:9px"><div style="font-weight:900;font-size:15px;color:var(--yellow)">${esc(p.name)}</div><div style="font-family:var(--fm);font-size:10px;color:var(--text-dim)">Lv.${p.level}</div></div></td>
       <td>${teamHtml}</td>
-      <td><span class="stat-chip sc-win">🏆 ${p.matchWins}</span></td>
+      <td><span class="stat-chip sc-win">🏆 ${p.matchWins}</span>${p.byeWins>0?`<span style="font-family:var(--fm);font-size:9px;color:var(--orange);margin-left:4px">(${p.byeWins} bye)</span>`:''}</td>
       <td><span class="stat-chip sc-loss">💀 ${p.matchLoss}</span></td>
       <td><span class="stat-chip sc-game">🎮 ${p.gameWins}–${p.gameLoss}</span></td>
       <td style="font-family:var(--fm);font-size:11px;color:var(--text-dim)">${p.played}</td>
@@ -1788,6 +1830,27 @@ function renderMatchCard(match,bracketType){
   const tbdA=!match.playerA||['TBD','BYE'].includes(match.playerA.key);
   const tbdB=!match.playerB||['TBD','BYE'].includes(match.playerB.key);
   const tc=bracketType==='wb'?'wb':bracketType==='lb'?'lb':'gf';
+  const isBye=!!match.isBye;
+
+  // ── BYE / Direct Advance card ──
+  if(isBye){
+    const realPlayer=match.byeWinner&&match.byeWinner!=='BYE'
+      ? (bracketData.participants||[]).find(p=>p.key===match.byeWinner)
+      : null;
+    const realName=realPlayer?.name||(winA?match.playerA?.name:match.playerB?.name)||'Unknown';
+    const admOverride=isAdmin?`<div class="bmc-bye-banner">
+      <span class="bmc-bye-tag">🟠 Bye — Direct Advance</span>
+      <button class="bmc-bye-adm" onclick="openByeOverride('${match.id}','${bracketType}')">✏️ Override</button>
+    </div>`:`<div class="bmc-bye-banner"><span class="bmc-bye-tag">🟠 Bye — Direct Advance</span></div>`;
+    return `<div class="bmc ${tc} bye-match" id="bmc-${match.id}">
+      <div class="bmc-head"><span class="bmc-id">${typeof match.id==='string'?match.id:`M${match.id}`}</span><span class="bmc-badge done">BYE WIN</span></div>
+      <div class="bmc-slot winner-slot"><span class="bmc-name">${esc(realName)}</span><span class="bmc-score" style="color:var(--orange)">✓</span></div>
+      <div class="bmc-slot tbd-slot"><span class="bmc-name">No Opponent</span><span class="bmc-score">—</span></div>
+      ${admOverride}
+    </div>`;
+  }
+
+  // ── Normal match card ──
   const pipsA=`<div class="bmc-score-bar">${[0,1,2].map(i=>`<div class="sb-pip${i<wA?(winA?' filled-w':' filled-l'):''}"></div>`).join('')}</div>`;
   const pipsB=`<div class="bmc-score-bar">${[0,1,2].map(i=>`<div class="sb-pip${i<wB?(winB?' filled-w':' filled-l'):''}"></div>`).join('')}</div>`;
   const sA=`<div class="bmc-slot${winA?' winner-slot':winB?' loser-slot':''}${tbdA?' tbd-slot':''}"><span class="bmc-name">${tbdA?'TBD':esc(match.playerA.name)}</span><span class="bmc-score">${tbdA?'':wA}</span></div>`;
@@ -1798,7 +1861,7 @@ function renderMatchCard(match,bracketType){
     <button class="bmc-wbtn bmc-wbtn-b" onclick="qScore('${match.id}',0,1,'${bracketType}')">+${esc((match.playerB.name||'').split(' ')[0])}</button>
     <button class="bmc-wbtn bmc-wbtn-r" onclick="qScore('${match.id}','r',0,'${bracketType}')">↺</button>
     <button class="bmc-edit-btn" onclick="openMatchEdit2('${match.id}','${bracketType}')">✏️</button>
-  </div>`:'';
+  </div>`:isAdmin&&(tbdA||tbdB)?`<div class="bmc-admin-row"><span style="font-family:var(--fm);font-size:9px;color:var(--text-dim)">Awaiting opponent</span></div>`:'';
   return `<div class="bmc ${tc}" id="bmc-${match.id}"><div class="bmc-head"><span class="bmc-id">${typeof match.id==='string'?match.id:`M${match.id}`}·Bo3</span>${badge}</div>${sA}${pipsA}${sB}${pipsB}${adm}</div>`;
 }
 
@@ -1893,17 +1956,47 @@ function findMatch(id,type){
 async function qScore(id,addA,addB,type){
   if(!bracketData)return;
   const match=findMatch(id,type);if(!match)return;
-  if(addA==='r'){match.winA=0;match.winB=0;match.done=false;}
-  else{match.winA=Math.min(3,(match.winA||0)+addA);match.winB=Math.min(3,(match.winB||0)+addB);match.done=(match.winA>=2||match.winB>=2);}
+  if(addA==='r'){
+    // Reset — if it was originally a bye match, re-mark for auto-resolution
+    match.winA=0;match.winB=0;match.done=false;
+    // Only clear isBye if both players are still BYE/TBD (pure bye), otherwise leave for re-propagation
+    match.isBye=false;match.byeWinner=null;
+  } else {
+    match.winA=Math.min(3,(match.winA||0)+addA);
+    match.winB=Math.min(3,(match.winB||0)+addB);
+    match.done=(match.winA>=2||match.winB>=2);
+    // If admin manually scores, this is no longer an auto-bye
+    if(match.isBye){match.isBye=false;match.byeWinner=null;}
+  }
   await saveBracket();
 }
 function openMatchEdit2(id,type){
   const match=findMatch(id,type);if(!match)return;
-  editMatchTarget={id,type};
+  editMatchTarget={id,type,isByeOverride:false};
   document.getElementById('editLabelA').textContent=`${match.playerA?.name||'Player A'} Wins`;
   document.getElementById('editLabelB').textContent=`${match.playerB?.name||'Player B'} Wins`;
   document.getElementById('editMatchInfo').innerHTML=`<div style="text-align:center;font-family:var(--fm);font-size:11px;color:var(--text-dim);margin-bottom:.5rem">${type.toUpperCase()} · Match ${id} · Best of 3</div>
     <div style="text-align:center;font-family:var(--fh);font-size:18px"><span style="color:var(--yellow)">${esc(match.playerA?.name||'TBD')}</span><span style="color:var(--text-dim);font-size:13px;margin:0 .5rem">vs</span><span style="color:var(--blue)">${esc(match.playerB?.name||'TBD')}</span></div>`;
+  sval('editWinA',match.winA||0);sval('editWinB',match.winB||0);
+  clearAlert('editMsg');document.getElementById('editMatchModal').classList.add('open');
+}
+
+// Admin override for a BYE match — lets admin record an actual score or revert to bye
+function openByeOverride(id,type){
+  const match=findMatch(id,type);if(!match)return;
+  editMatchTarget={id,type,isByeOverride:true};
+  const realName=match.winA>=2?match.playerA?.name:match.playerB?.name;
+  document.getElementById('editLabelA').textContent=`${match.playerA?.name||'Player A'} Wins`;
+  document.getElementById('editLabelB').textContent=`${match.playerB?.name||'Player B'} Wins`;
+  document.getElementById('editMatchInfo').innerHTML=`
+    <div style="background:rgba(255,136,0,.08);border:1px solid rgba(255,136,0,.25);border-radius:6px;padding:8px 12px;margin-bottom:.75rem">
+      <div style="font-family:var(--fp);font-size:7px;color:var(--orange);letter-spacing:2px;margin-bottom:4px">🟠 BYE OVERRIDE</div>
+      <div style="font-size:13px;color:var(--text-dim);line-height:1.5">
+        <strong style="color:var(--text)">${esc(realName||'Player')}</strong> received a bye (no opponent).<br>
+        You can set a real match score here, or reset back to bye.
+      </div>
+    </div>
+    <div style="text-align:center;font-family:var(--fh);font-size:16px"><span style="color:var(--yellow)">${esc(match.playerA?.name||'TBD')}</span><span style="color:var(--text-dim);font-size:13px;margin:0 .5rem">vs</span><span style="color:var(--blue)">${esc(match.playerB?.name||'TBD')}</span></div>`;
   sval('editWinA',match.winA||0);sval('editWinB',match.winB||0);
   clearAlert('editMsg');document.getElementById('editMatchModal').classList.add('open');
 }
@@ -1914,7 +2007,24 @@ async function saveMatchEdit(){
   if(wA===wB&&wA>=2){showAlert('editMsg','⚠️ Cannot tie at 2+ in best-of-3.','error');return;}
   const match=findMatch(editMatchTarget.id,editMatchTarget.type);
   if(!match){showAlert('editMsg','⚠️ Match not found.','error');return;}
-  match.winA=wA;match.winB=wB;match.done=(wA>=2||wB>=2);
+
+  // If this is a bye override: if admin sets real scores, clear the bye flag so it
+  // becomes a regular match. If both scores are 0, revert to the auto-bye state.
+  if(editMatchTarget.isByeOverride){
+    if(wA===0&&wB===0){
+      // Revert to bye — re-trigger auto-resolution on next propagate
+      match.winA=0;match.winB=0;match.done=false;match.isBye=false;match.byeWinner=null;
+      // propagateBracket will re-detect and re-resolve it
+    } else {
+      // Admin recorded a real result — this is now a real match
+      match.winA=wA;match.winB=wB;match.done=(wA>=2||wB>=2);
+      match.isBye=false;match.byeWinner=null; // no longer a bye
+    }
+  } else {
+    match.winA=wA;match.winB=wB;match.done=(wA>=2||wB>=2);
+    // If admin manually cleared scores back to 0-0, also un-mark any accidental bye
+    if(wA===0&&wB===0){match.done=false;}
+  }
   await saveBracket();closeModal('editMatchModal');
 }
 async function quickScore(){}  // legacy shim
