@@ -780,6 +780,16 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
           <button class="btn btn-danger btn-sm" onclick="resetBracket()">🗑️ Reset Bracket</button>
         </div>
       </div>
+
+      <!-- Manual Matchmaking Panel -->
+      <div style="margin-top:1.5rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+          <div style="font-family:var(--fh);font-weight:700;font-size:17px;color:var(--yellow)">🔧 Manual Matchmaking</div>
+          <button class="btn btn-sm btn-outline" onclick="renderAdminMatchmakingPanel()">🔄 Refresh</button>
+        </div>
+        <div id="adminMatchmakingWrap"><div class="alert alert-info">Generate a bracket first to enable manual matchmaking.</div></div>
+      </div>
+
     </div>
 
   </div>
@@ -1681,88 +1691,107 @@ function buildBracket(participants){
   return {participants,wb,lb,gf,generatedAt:new Date().toISOString()};
 }
 
-// Propagate results through the bracket tree.
-// KEY FIX: Only propagate winners/losers from a round into the NEXT round
-// once every match in the current round is DONE (or bye-resolved).
-// This prevents partially-played rounds from pre-populating future slots.
+// ═══════════════════════════════════════════════════════════════
+// PROPAGATE BRACKET — Clean-state approach
+// ───────────────────────────────────────────────────────────────
+// Strategy:
+//  1. First pass: auto-resolve any bye matches in ALL rounds
+//  2. For each WB round that is 100% complete:
+//       - clear then fill the next WB round's slots from winners
+//       - clear then fill the corresponding LB drop-in round from losers
+//  3. For each LB round that is 100% complete:
+//       - clear then fill the next LB round's slots from winners
+//  4. Fill GF once WB-final and LB-final are both done
+//
+// "Clear then fill" means we always derive slots from results —
+// no stale data from previous runs, no partial-round leakage.
+// Manual overrides (isManuallyset flag) are respected and NOT cleared.
+// ═══════════════════════════════════════════════════════════════
 function propagateBracket(){
   if(!bracketData)return;
   const{wb,lb,gf}=bracketData;
 
-  // Helper: auto-resolve a single-player (bye) match — only if NOT manually edited
-  function autoResolveBye(match){
-    if(match.done) return; // already resolved — respect it
-    const aReal=match.playerA&&!['TBD','BYE'].includes(match.playerA.key);
-    const bReal=match.playerB&&!['TBD','BYE'].includes(match.playerB.key);
-    if(aReal&&!bReal){
-      match.winA=2;match.winB=0;match.done=true;match.isBye=true;match.byeWinner=match.playerA.key;
-    } else if(!aReal&&bReal){
-      match.winB=2;match.winA=0;match.done=true;match.isBye=true;match.byeWinner=match.playerB.key;
-    }
+  // ── Step 1: Auto-resolve bye matches (all pools) ──────────────
+  function tryBye(m){
+    if(!m||m.done)return;
+    const aOk=m.playerA&&!['TBD','BYE'].includes(m.playerA.key);
+    const bOk=m.playerB&&!['TBD','BYE'].includes(m.playerB.key);
+    if(aOk&&!bOk){ m.winA=2;m.winB=0;m.done=true;m.isBye=true;m.byeWinner=m.playerA.key; }
+    else if(!aOk&&bOk){ m.winB=2;m.winA=0;m.done=true;m.isBye=true;m.byeWinner=m.playerB.key; }
   }
+  (wb||[]).forEach(r=>r.forEach(tryBye));
+  (lb||[]).forEach(r=>r.forEach(tryBye));
+  tryBye(gf);
 
-  // ── WB propagation (round-gated) ──
+  // Helper: is a slot manually overridden by admin?
+  const isManual=m=>!!m.manuallySet;
+
+  // ── Step 2: WB round-by-round propagation ────────────────────
   (wb||[]).forEach((round,ri)=>{
-    // First auto-resolve any byes in this round
-    round.forEach(m=>autoResolveBye(m));
-    // Only proceed if ALL matches in this round are done
-    const roundDone=round.every(m=>m.done);
-    if(!roundDone)return;
-    // Propagate each match's result
+    // Only propagate when this entire round is complete
+    if(!round.every(m=>m.done))return;
+
     round.forEach((match,mi)=>{
       const winner=match.winA>=2?match.playerA:match.playerB;
       const loser =match.winA>=2?match.playerB:match.playerA;
-      // Advance winner to next WB round
-      if(ri+1<wb.length){
-        const nm=wb[ri+1][Math.floor(mi/2)];
-        // Only fill if slot is still TBD (don't overwrite manually-assigned)
-        if(mi%2===0){if(!nm.playerA||nm.playerA.key==='TBD')nm.playerA={...winner};}
-        else{if(!nm.playerB||nm.playerB.key==='TBD')nm.playerB={...winner};}
+      const isEven=mi%2===0;
+      const nextIdx=Math.floor(mi/2);
+
+      // ── Advance winner into next WB round ──
+      if(ri+1<(wb||[]).length){
+        const nm=wb[ri+1][nextIdx];
+        if(nm&&!isManual(nm)){
+          if(isEven)nm.playerA={...winner};
+          else       nm.playerB={...winner};
+        }
       } else {
-        // WB Final winner → GF slot A
-        if(gf&&winner.key!=='BYE'&&winner.key!=='TBD'){
+        // WB Final winner → GF playerA
+        if(gf&&!isManual(gf)&&winner.key!=='BYE'&&winner.key!=='TBD'){
           if(!gf.playerA||gf.playerA.key==='TBD')gf.playerA={...winner};
         }
       }
-      // Drop loser to LB (real matches only, not byes)
-      if(!match.isBye&&loser&&loser.key!=='BYE'&&loser.key!=='TBD'){
-        const lbTargetRound=ri*2;
-        if(lb&&lbTargetRound<lb.length){
-          const lbRound=lb[lbTargetRound];
-          const lbIdx=Math.floor(mi/2);
-          if(lbIdx<lbRound.length){
-            const nm=lbRound[lbIdx];
-            if(mi%2===0){if(!nm.playerA||nm.playerA.key==='TBD')nm.playerA={...loser};}
-            else{if(!nm.playerB||nm.playerB.key==='TBD')nm.playerB={...loser};}
-          }
-        }
-      }
+
+      // ── Drop loser into LB (real matches only) ──
+      if(match.isBye||!loser||loser.key==='BYE'||loser.key==='TBD')return;
+      const lbDrop=ri*2; // WB R0→LB R0, WB R1→LB R2, WB R2→LB R4 …
+      if(!(lb||[]).length||lbDrop>=(lb||[]).length)return;
+      const lbRound=lb[lbDrop];
+      if(!lbRound)return;
+      const lbIdx=Math.floor(mi/2);
+      const lbMatch=lbRound[lbIdx];
+      if(!lbMatch||isManual(lbMatch))return;
+      if(isEven)lbMatch.playerA={...loser};
+      else       lbMatch.playerB={...loser};
     });
   });
 
-  // ── LB propagation (round-gated) ──
+  // ── Step 3: LB round-by-round propagation ────────────────────
   (lb||[]).forEach((round,ri)=>{
-    round.forEach(m=>autoResolveBye(m));
-    const roundDone=round.every(m=>m.done);
-    if(!roundDone)return;
+    if(!round.every(m=>m.done))return;
+
     round.forEach((match,mi)=>{
       const winner=match.winA>=2?match.playerA:match.playerB;
       if(!winner||winner.key==='TBD'||winner.key==='BYE')return;
-      if(ri+1<lb.length){
-        const nm=lb[ri+1][Math.floor(mi/2)];
-        if(mi%2===0){if(!nm.playerA||nm.playerA.key==='TBD')nm.playerA={...winner};}
-        else{if(!nm.playerB||nm.playerB.key==='TBD')nm.playerB={...winner};}
+      const isEven=mi%2===0;
+      const nextIdx=Math.floor(mi/2);
+
+      if(ri+1<(lb||[]).length){
+        const nm=lb[ri+1][nextIdx];
+        if(nm&&!isManual(nm)){
+          if(isEven)nm.playerA={...winner};
+          else       nm.playerB={...winner};
+        }
       } else {
-        // LB Final winner → GF slot B
-        if(gf&&winner.key!=='BYE'&&winner.key!=='TBD'){
+        // LB Final winner → GF playerB
+        if(gf&&!isManual(gf)&&winner.key!=='BYE'&&winner.key!=='TBD'){
           if(!gf.playerB||gf.playerB.key==='TBD')gf.playerB={...winner};
         }
       }
     });
   });
 
-  // Auto-bye for GF only if one slot filled and the other is still TBD
-  autoResolveBye(gf);
+  // ── Step 4: Re-check GF bye ───────────────────────────────────
+  tryBye(gf);
 }
 
 // ═══════════════════════════════════════════
@@ -1814,6 +1843,7 @@ let currentBracketTab='wb';
 
 function renderBracketPage(){
   renderStandings();renderBracketTabs();renderBracketView();updateHeroPills();updateGenStats();
+  if(isAdmin)renderAdminMatchmakingPanel();
 }
 
 function renderStandings(){
@@ -2020,15 +2050,13 @@ async function qScore(id,addA,addB,type){
   if(!bracketData)return;
   const match=findMatch(id,type);if(!match)return;
   if(addA==='r'){
-    // Reset — if it was originally a bye match, re-mark for auto-resolution
     match.winA=0;match.winB=0;match.done=false;
-    // Only clear isBye if both players are still BYE/TBD (pure bye), otherwise leave for re-propagation
     match.isBye=false;match.byeWinner=null;
+    match.manuallySet=false; // allow auto-propagation to refill
   } else {
     match.winA=Math.min(3,(match.winA||0)+addA);
     match.winB=Math.min(3,(match.winB||0)+addB);
     match.done=(match.winA>=2||match.winB>=2);
-    // If admin manually scores, this is no longer an auto-bye
     if(match.isBye){match.isBye=false;match.byeWinner=null;}
   }
   await saveBracket();
@@ -2132,8 +2160,9 @@ async function saveMatchup(){
   const pA=getP(selA),pB=getP(selB);
   match.playerA={key:pA.key,name:pA.name,level:pA.level};
   match.playerB={key:pB.key,name:pB.name,level:pB.level};
-
-  // Reset scores when matchup changes (can't keep old scores with new players)
+  // Mark as manually set so propagation won't overwrite this
+  match.manuallySet=true;
+  // Reset scores when matchup changes
   match.winA=0;match.winB=0;match.done=false;match.isBye=false;match.byeWinner=null;
 
   await saveBracket();closeModal('matchupModal');
@@ -2190,6 +2219,7 @@ async function generateBracket(){
   try{
     const fb=await waitFb();await fb.setBracket(bracketData);
     currentBracketTab='wb';renderBracketPage();
+    if(isAdmin)renderAdminMatchmakingPanel();
     const wb=bracketData.wb||[],lb=bracketData.lb||[],gf=bracketData.gf;
     const total=(wb).reduce((a,r)=>a+r.length,0)+(lb).reduce((a,r)=>a+r.length,0)+(gf?1:0);
     showAlert('genMsg',`✅ Double-Elimination bracket generated for ${participants.length} trainers — ${total} total matches!`,'success');
@@ -2204,13 +2234,144 @@ async function resetBracket(){
   currentBracketTab='wb';renderBracketPage();showAlert('genMsg','✅ Bracket reset.','success');
 }
 
-// Re-run automatic propagation without erasing existing data.
-// Fills TBD slots based on completed match results.
+// Re-run automatic propagation without erasing data
 async function rePropagate(){
   if(!bracketData){showAlert('genMsg','⚠️ No bracket to propagate.','error');return;}
   propagateBracket();
   await saveBracket();
   showAlert('genMsg','✅ Matchups auto-filled from completed results.','success');
+}
+
+// ═══════════════════════════════════════════════════════
+// ADMIN MANUAL MATCHMAKING PANEL
+// Shows all rounds. Admin can drag/drop or select players
+// for any pending/TBD match slot in any round.
+// ═══════════════════════════════════════════════════════
+function renderAdminMatchmakingPanel(){
+  const wrap=document.getElementById('adminMatchmakingWrap');
+  if(!wrap)return;
+  if(!bracketData||!bracketData.wb){
+    wrap.innerHTML='<div class="alert alert-info">Generate a bracket first to enable manual matchmaking.</div>';
+    return;
+  }
+  const participants=bracketData.participants||[];
+  const wb=bracketData.wb||[];
+  const lb=bracketData.lb||[];
+  const gf=bracketData.gf;
+
+  // Find which WB round is currently "active" (first incomplete round)
+  const activeWBRound=wb.findIndex(r=>!r.every(m=>m.done));
+  const activeLBRound=lb.findIndex(r=>!r.every(m=>m.done));
+
+  let html=`<div style="margin-bottom:1.5rem">
+    <div style="font-family:var(--fm);font-size:10px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:1rem">
+      📌 Active rounds highlighted. Edit any TBD slot to manually assign players.
+    </div>`;
+
+  // ── WB Rounds ──
+  html+=`<div style="font-family:var(--fh);font-weight:700;font-size:15px;color:var(--green);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem">
+    🏆 Winners Bracket <span style="font-family:var(--fm);font-size:10px;color:var(--text-dim);font-weight:400">${wb.length} rounds</span>
+  </div>`;
+
+  wb.forEach((round,ri)=>{
+    const isActive=ri===activeWBRound;
+    const isDone=round.every(m=>m.done);
+    const lbls=['Round 1','Round 2','Quarter Final','Semi Final','WB Final'];
+    const lbl=lbls[ri]||`Round ${ri+1}`;
+    html+=`<div style="margin-bottom:1.2rem">
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem">
+        <span style="font-family:var(--fp);font-size:7px;color:${isActive?'var(--yellow)':isDone?'var(--green)':'var(--text-dim)'};letter-spacing:1px">${lbl}</span>
+        ${isActive?'<span class="bmc-badge pending" style="font-size:8px">ACTIVE</span>':''}
+        ${isDone?'<span class="bmc-badge done" style="font-size:8px">✓ DONE</span>':''}
+        ${!isDone&&!isActive?'<span class="bmc-badge tbd" style="font-size:8px">LOCKED</span>':''}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:.75rem">`;
+    round.forEach(m=>{
+      html+=renderAdminMatchRow(m,'wb',participants,isActive||isAdmin);
+    });
+    html+=`</div></div>`;
+  });
+
+  // ── LB Rounds ──
+  if(lb.length){
+    html+=`<div style="font-family:var(--fh);font-weight:700;font-size:15px;color:#ff7070;margin:.5rem 0 .75rem;display:flex;align-items:center;gap:.5rem">
+      ⚔️ Losers Bracket <span style="font-family:var(--fm);font-size:10px;color:var(--text-dim);font-weight:400">${lb.length} rounds</span>
+    </div>`;
+    lb.forEach((round,ri)=>{
+      const isActive=ri===activeLBRound;
+      const isDone=round.every(m=>m.done);
+      html+=`<div style="margin-bottom:1.2rem">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem">
+          <span style="font-family:var(--fp);font-size:7px;color:${isActive?'var(--yellow)':isDone?'var(--green)':'var(--text-dim)'};letter-spacing:1px">LB Round ${ri+1}</span>
+          ${isActive?'<span class="bmc-badge pending" style="font-size:8px">ACTIVE</span>':''}
+          ${isDone?'<span class="bmc-badge done" style="font-size:8px">✓ DONE</span>':''}
+          ${!isDone&&!isActive?'<span class="bmc-badge tbd" style="font-size:8px">LOCKED</span>':''}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:.75rem">`;
+      round.forEach(m=>{
+        html+=renderAdminMatchRow(m,'lb',participants,isActive||isAdmin);
+      });
+      html+=`</div></div>`;
+    });
+  }
+
+  // ── Grand Final ──
+  if(gf){
+    html+=`<div style="font-family:var(--fh);font-weight:700;font-size:15px;color:var(--yellow);margin:.5rem 0 .75rem">👑 Grand Final</div>
+    <div style="max-width:400px">${renderAdminMatchRow(gf,'gf',participants,true)}</div>`;
+  }
+
+  html+=`<div style="margin-top:1.5rem;display:flex;gap:.75rem;flex-wrap:wrap">
+    <button class="btn btn-outline btn-sm" onclick="rePropagate()">🔄 Auto-fill from Results</button>
+    <button class="btn btn-sm" style="background:rgba(155,48,255,.1);color:var(--purple-glow);border:1.5px solid var(--purple)" onclick="clearAllManualFlags()">🔓 Release Manual Locks</button>
+  </div></div>`;
+
+  wrap.innerHTML=html;
+}
+
+function renderAdminMatchRow(match,type,participants,editable){
+  const wA=match.winA||0,wB=match.winB||0,done=match.done,isBye=match.isBye;
+  const tbdA=!match.playerA||['TBD','BYE'].includes(match.playerA.key);
+  const tbdB=!match.playerB||['TBD','BYE'].includes(match.playerB.key);
+  const winA=done&&wA>wB,winB=done&&wB>wA;
+  const manual=match.manuallySet?'<span style="font-family:var(--fm);font-size:8px;color:var(--orange);margin-left:4px">🔒manual</span>':'';
+  const matchId=typeof match.id==='string'?match.id:`M${match.id}`;
+
+  const slotStyle=(isWin,isLose,isTbd)=>{
+    if(isWin)return'color:var(--green);font-weight:900';
+    if(isLose)return'color:var(--red);opacity:.6;font-weight:700';
+    if(isTbd)return'color:var(--text-dim);font-style:italic';
+    return'font-weight:700';
+  };
+
+  const editBtn=editable&&!done?`<button class="btn btn-xs btn-outline" onclick="openMatchupEditor('${matchId}','${type}')" style="border-color:var(--orange);color:var(--orange);margin-left:auto;flex-shrink:0">🔧 Edit</button>`:'';
+  const scoreBtn=editable&&!tbdA&&!tbdB&&!isBye?`<button class="btn btn-xs btn-outline" onclick="openMatchEdit2('${matchId}','${type}')" style="flex-shrink:0">✏️</button>`:'';
+
+  return `<div style="background:var(--surface3);border:1px solid ${done?'var(--win-border)':isBye?'rgba(255,136,0,.3)':match.manuallySet?'rgba(155,48,255,.35)':'var(--border)'};border-radius:8px;padding:.75rem 1rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+      <span style="font-family:var(--fm);font-size:9px;color:var(--text-dim);letter-spacing:1.5px">${matchId}${manual}</span>
+      <span style="font-family:var(--fm);font-size:9px">${done?'<span style="color:var(--green)">✓ DONE</span>':isBye?'<span style="color:var(--orange)">BYE</span>':tbdA||tbdB?'<span style="color:var(--text-dim)">TBD</span>':'<span style="color:var(--yellow)">LIVE</span>'}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${slotStyle(winA,winB&&!winA,tbdA)}">${tbdA?'TBD':esc(match.playerA.name)}</div>
+      <div style="font-family:var(--ff);font-size:14px;color:var(--text-dim);flex-shrink:0">${done?`${wA}:${wB}`:'vs'}</div>
+      <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;${slotStyle(winB,winA&&!winB,tbdB)}">${tbdB?(isBye?'No Opp.':'TBD'):esc(match.playerB.name)}</div>
+      ${scoreBtn}${editBtn}
+    </div>
+  </div>`;
+}
+
+// Clear all manuallySet flags — allow auto-propagation to take full control again
+async function clearAllManualFlags(){
+  if(!bracketData)return;
+  if(!confirm('This will release all manually-locked matchups and let auto-propagation overwrite them. Continue?'))return;
+  const clearFlags=arr=>(arr||[]).forEach(r=>r.forEach(m=>{m.manuallySet=false;}));
+  clearFlags(bracketData.wb);clearFlags(bracketData.lb);
+  if(bracketData.gf)bracketData.gf.manuallySet=false;
+  propagateBracket();
+  await saveBracket();
+  renderAdminMatchmakingPanel();
+  showAlert('genMsg','✅ Manual locks released. Bracket auto-filled.','success');
 }
 
 // ═══════════════════════════════════════════
