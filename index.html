@@ -1692,105 +1692,111 @@ function buildBracket(participants){
 }
 
 // ═══════════════════════════════════════════════════════════════
-// PROPAGATE BRACKET — Clean-state approach
+// PROPAGATE BRACKET — Pure derivation (reset → rebuild)
 // ───────────────────────────────────────────────────────────────
-// Strategy:
-//  1. First pass: auto-resolve any bye matches in ALL rounds
-//  2. For each WB round that is 100% complete:
-//       - clear then fill the next WB round's slots from winners
-//       - clear then fill the corresponding LB drop-in round from losers
-//  3. For each LB round that is 100% complete:
-//       - clear then fill the next LB round's slots from winners
-//  4. Fill GF once WB-final and LB-final are both done
-//
-// "Clear then fill" means we always derive slots from results —
-// no stale data from previous runs, no partial-round leakage.
-// Manual overrides (isManuallyset flag) are respected and NOT cleared.
+// Every call starts clean:
+//  1. Reset all next-round slots to TBD (except R1 WB which is seeded)
+//  2. Auto-resolve bye matches (single real player vs TBD/BYE)
+//  3. For every COMPLETE round, push winners forward and losers to LB
+//  4. Repeat until no more complete rounds
+// This guarantees correctness even when results are edited/reset.
+// manuallySet slots are skipped during reset (admin-assigned players kept).
 // ═══════════════════════════════════════════════════════════════
 function propagateBracket(){
   if(!bracketData)return;
   const{wb,lb,gf}=bracketData;
+  if(!wb||!wb.length)return;
 
-  // ── Step 1: Auto-resolve bye matches (all pools) ──────────────
+  // ── Step 1: Reset only PLAYER SLOTS (not scores) for auto-propagated matches ──
+  // We keep winA/winB/done intact — those are real results.
+  // We only reset the "who plays who" slots so we can re-derive them correctly.
+  // Matches that already have scores recorded keep their players too (scores would be wrong otherwise).
+  // We reset player slots ONLY for matches with NO recorded result yet (not done, no wins).
+  function resetSlot(m){
+    if(!m||m.manuallySet)return; // admin-locked: never touch
+    if(m.done||(m.winA||0)>0||(m.winB||0)>0)return; // has real results: keep as-is
+    // No results yet — safe to reset player names so propagation can refill
+    m.playerA={...TBD};m.playerB={...TBD};
+    m.isBye=false;m.byeWinner=null;
+  }
+  for(let ri=1;ri<wb.length;ri++) wb[ri].forEach(resetSlot);
+  (lb||[]).forEach(round=>round.forEach(resetSlot));
+  if(gf&&!gf.manuallySet&&!gf.done&&!(gf.winA||0)&&!(gf.winB||0)){
+    gf.playerA={...TBD};gf.playerB={...TBD};gf.isBye=false;gf.byeWinner=null;
+  }
+
+  // ── Step 2: Auto-resolve bye matches (single real player vs TBD/BYE) ──
   function tryBye(m){
     if(!m||m.done)return;
     const aOk=m.playerA&&!['TBD','BYE'].includes(m.playerA.key);
     const bOk=m.playerB&&!['TBD','BYE'].includes(m.playerB.key);
-    if(aOk&&!bOk){ m.winA=2;m.winB=0;m.done=true;m.isBye=true;m.byeWinner=m.playerA.key; }
-    else if(!aOk&&bOk){ m.winB=2;m.winA=0;m.done=true;m.isBye=true;m.byeWinner=m.playerB.key; }
+    if(aOk&&!bOk){m.winA=2;m.winB=0;m.done=true;m.isBye=true;m.byeWinner=m.playerA.key;}
+    else if(!aOk&&bOk){m.winB=2;m.winA=0;m.done=true;m.isBye=true;m.byeWinner=m.playerB.key;}
   }
-  (wb||[]).forEach(r=>r.forEach(tryBye));
-  (lb||[]).forEach(r=>r.forEach(tryBye));
-  tryBye(gf);
+  wb[0].forEach(tryBye);
 
-  // Helper: is a slot manually overridden by admin?
-  const isManual=m=>!!m.manuallySet;
-
-  // ── Step 2: WB round-by-round propagation ────────────────────
-  (wb||[]).forEach((round,ri)=>{
-    // Only propagate when this entire round is complete
-    if(!round.every(m=>m.done))return;
+  // ── Step 3: WB propagation (round-gated) ──────────────────────
+  wb.forEach((round,ri)=>{
+    round.forEach(tryBye); // auto-bye newly-filled slots
+    if(!round.every(m=>m.done))return; // whole round must be done
 
     round.forEach((match,mi)=>{
       const winner=match.winA>=2?match.playerA:match.playerB;
       const loser =match.winA>=2?match.playerB:match.playerA;
-      const isEven=mi%2===0;
-      const nextIdx=Math.floor(mi/2);
+      const slot  =Math.floor(mi/2);
+      const sideA =mi%2===0;
 
-      // ── Advance winner into next WB round ──
-      if(ri+1<(wb||[]).length){
-        const nm=wb[ri+1][nextIdx];
-        if(nm&&!isManual(nm)){
-          if(isEven)nm.playerA={...winner};
-          else       nm.playerB={...winner};
+      // Advance winner into next WB round slot (only if slot still TBD)
+      if(ri+1<wb.length){
+        const nm=wb[ri+1][slot];
+        if(nm&&!nm.manuallySet&&!nm.done&&!(nm.winA||0)&&!(nm.winB||0)){
+          if(sideA)nm.playerA={...winner};
+          else     nm.playerB={...winner};
         }
-      } else {
+      } else if(gf&&!gf.manuallySet&&winner.key!=='BYE'&&winner.key!=='TBD'){
         // WB Final winner → GF playerA
-        if(gf&&!isManual(gf)&&winner.key!=='BYE'&&winner.key!=='TBD'){
-          if(!gf.playerA||gf.playerA.key==='TBD')gf.playerA={...winner};
-        }
+        if(!gf.done)gf.playerA={...winner};
       }
 
-      // ── Drop loser into LB (real matches only) ──
-      if(match.isBye||!loser||loser.key==='BYE'||loser.key==='TBD')return;
-      const lbDrop=ri*2; // WB R0→LB R0, WB R1→LB R2, WB R2→LB R4 …
-      if(!(lb||[]).length||lbDrop>=(lb||[]).length)return;
+      // Drop loser to LB (real matches only)
+      if(match.isBye||!loser||['BYE','TBD'].includes(loser.key))return;
+      const lbDrop=ri*2;
+      if(!lb||lbDrop>=lb.length)return;
       const lbRound=lb[lbDrop];
-      if(!lbRound)return;
-      const lbIdx=Math.floor(mi/2);
-      const lbMatch=lbRound[lbIdx];
-      if(!lbMatch||isManual(lbMatch))return;
-      if(isEven)lbMatch.playerA={...loser};
-      else       lbMatch.playerB={...loser};
+      const lbSlot=Math.floor(mi/2);
+      if(!lbRound||lbSlot>=lbRound.length)return;
+      const lbM=lbRound[lbSlot];
+      if(!lbM||lbM.manuallySet||lbM.done||(lbM.winA||0)||(lbM.winB||0))return;
+      if(sideA)lbM.playerA={...loser};
+      else     lbM.playerB={...loser};
     });
   });
 
-  // ── Step 3: LB round-by-round propagation ────────────────────
+  // ── Step 4: LB propagation (round-gated) ──────────────────────
   (lb||[]).forEach((round,ri)=>{
+    round.forEach(tryBye);
     if(!round.every(m=>m.done))return;
 
     round.forEach((match,mi)=>{
       const winner=match.winA>=2?match.playerA:match.playerB;
-      if(!winner||winner.key==='TBD'||winner.key==='BYE')return;
-      const isEven=mi%2===0;
-      const nextIdx=Math.floor(mi/2);
+      if(!winner||['TBD','BYE'].includes(winner.key))return;
+      const slot =Math.floor(mi/2);
+      const sideA=mi%2===0;
 
-      if(ri+1<(lb||[]).length){
-        const nm=lb[ri+1][nextIdx];
-        if(nm&&!isManual(nm)){
-          if(isEven)nm.playerA={...winner};
-          else       nm.playerB={...winner};
+      if(ri+1<lb.length){
+        const nm=lb[ri+1][slot];
+        if(nm&&!nm.manuallySet&&!nm.done&&!(nm.winA||0)&&!(nm.winB||0)){
+          if(sideA)nm.playerA={...winner};
+          else     nm.playerB={...winner};
         }
-      } else {
+      } else if(gf&&!gf.manuallySet&&winner.key!=='BYE'&&winner.key!=='TBD'){
         // LB Final winner → GF playerB
-        if(gf&&!isManual(gf)&&winner.key!=='BYE'&&winner.key!=='TBD'){
-          if(!gf.playerB||gf.playerB.key==='TBD')gf.playerB={...winner};
-        }
+        if(!gf.done)gf.playerB={...winner};
       }
     });
   });
 
-  // ── Step 4: Re-check GF bye ───────────────────────────────────
+  // ── Step 5: Final GF bye check ────────────────────────────────
   tryBye(gf);
 }
 
