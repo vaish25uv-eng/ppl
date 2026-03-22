@@ -772,6 +772,7 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
         <div id="participantPreview"></div>
         <div class="gen-actions">
           <button class="btn btn-gold" onclick="generateBracket()" id="genBtn">⚡ Generate Bracket</button>
+          <button class="btn btn-outline btn-sm" onclick="rePropagate()" id="rePropBtn" title="Re-run automatic matchup propagation based on completed results">🔄 Auto-fill Matchups</button>
           <div id="genMsg" style="flex:1"></div>
         </div>
         <div class="danger-zone" id="dangerZone" style="display:none">
@@ -818,6 +819,42 @@ footer span{color:var(--yellow)}footer a{color:var(--blue);text-decoration:none}
       <div style="display:flex;gap:.75rem;justify-content:flex-end">
         <button class="btn btn-danger btn-sm" onclick="closeModal('editMatchModal')">Cancel</button>
         <button class="btn btn-gold btn-sm" onclick="saveMatchEdit()">💾 Save Score</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MATCHUP EDITOR MODAL (Admin: manually assign players to any match slot) -->
+<div class="modal-overlay" id="matchupModal">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-head">
+      <span class="modal-title">🔧 Edit Matchup</span>
+      <button class="modal-x" onclick="closeModal('matchupModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="matchupInfo" style="margin-bottom:1rem"></div>
+      <div style="background:rgba(255,136,0,.07);border:1px solid rgba(255,136,0,.2);border-radius:6px;padding:10px 14px;margin-bottom:1.2rem;font-size:12px;color:var(--orange);line-height:1.6">
+        ⚠️ Manually assigning players overrides automatic bracket propagation for this match slot. Use only to fix errors.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem">
+        <div class="form-group">
+          <label id="muLabelA">Player A</label>
+          <select id="muSelectA" style="background:var(--surface3);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fb);font-size:14px;font-weight:600;padding:10px 12px;outline:none;width:100%;cursor:pointer">
+          </select>
+        </div>
+        <div class="form-group">
+          <label id="muLabelB">Player B</label>
+          <select id="muSelectB" style="background:var(--surface3);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fb);font-size:14px;font-weight:600;padding:10px 12px;outline:none;width:100%;cursor:pointer">
+          </select>
+        </div>
+      </div>
+      <div id="muMsg" style="margin-bottom:1rem"></div>
+      <div style="display:flex;gap:.8rem;justify-content:space-between;flex-wrap:wrap">
+        <button class="btn btn-danger btn-sm" onclick="resetMatchupSlots()" style="flex:none">↺ Reset to TBD</button>
+        <div style="display:flex;gap:.8rem">
+          <button class="btn btn-sm btn-outline" onclick="closeModal('matchupModal')">Cancel</button>
+          <button class="btn btn-sm btn-gold" onclick="saveMatchup()">💾 Save Matchup</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1644,72 +1681,87 @@ function buildBracket(participants){
   return {participants,wb,lb,gf,generatedAt:new Date().toISOString()};
 }
 
-// Propagate results through the bracket tree
-// Also auto-detects matches where only one slot is filled (bye in LB/later WB rounds)
-// and marks them as isBye + auto-advances
+// Propagate results through the bracket tree.
+// KEY FIX: Only propagate winners/losers from a round into the NEXT round
+// once every match in the current round is DONE (or bye-resolved).
+// This prevents partially-played rounds from pre-populating future slots.
 function propagateBracket(){
   if(!bracketData)return;
   const{wb,lb,gf}=bracketData;
 
-  // Helper: auto-resolve a match if it has exactly one real player and one BYE/TBD
+  // Helper: auto-resolve a single-player (bye) match — only if NOT manually edited
   function autoResolveBye(match){
-    if(match.done) return; // already resolved, respect existing result
+    if(match.done) return; // already resolved — respect it
     const aReal=match.playerA&&!['TBD','BYE'].includes(match.playerA.key);
     const bReal=match.playerB&&!['TBD','BYE'].includes(match.playerB.key);
     if(aReal&&!bReal){
-      // Player A gets bye win
       match.winA=2;match.winB=0;match.done=true;match.isBye=true;match.byeWinner=match.playerA.key;
     } else if(!aReal&&bReal){
-      // Player B gets bye win
       match.winB=2;match.winA=0;match.done=true;match.isBye=true;match.byeWinner=match.playerB.key;
     }
   }
 
-  // WB propagation
+  // ── WB propagation (round-gated) ──
   (wb||[]).forEach((round,ri)=>{
-    round.forEach(m=>autoResolveBye(m)); // auto-bye before propagating
+    // First auto-resolve any byes in this round
+    round.forEach(m=>autoResolveBye(m));
+    // Only proceed if ALL matches in this round are done
+    const roundDone=round.every(m=>m.done);
+    if(!roundDone)return;
+    // Propagate each match's result
     round.forEach((match,mi)=>{
-      if(!match.done)return;
       const winner=match.winA>=2?match.playerA:match.playerB;
-      const loser=match.winA>=2?match.playerB:match.playerA;
+      const loser =match.winA>=2?match.playerB:match.playerA;
       // Advance winner to next WB round
       if(ri+1<wb.length){
         const nm=wb[ri+1][Math.floor(mi/2)];
-        if(mi%2===0)nm.playerA={...winner};else nm.playerB={...winner};
+        // Only fill if slot is still TBD (don't overwrite manually-assigned)
+        if(mi%2===0){if(!nm.playerA||nm.playerA.key==='TBD')nm.playerA={...winner};}
+        else{if(!nm.playerB||nm.playerB.key==='TBD')nm.playerB={...winner};}
       } else {
-        if(gf&&winner.key!=='BYE'&&winner.key!=='TBD')gf.playerA={...winner};
+        // WB Final winner → GF slot A
+        if(gf&&winner.key!=='BYE'&&winner.key!=='TBD'){
+          if(!gf.playerA||gf.playerA.key==='TBD')gf.playerA={...winner};
+        }
       }
-      // Drop loser to LB (only if it was a real match, not a bye)
-      if(!match.isBye&&loser.key!=='BYE'&&loser.key!=='TBD'){
+      // Drop loser to LB (real matches only, not byes)
+      if(!match.isBye&&loser&&loser.key!=='BYE'&&loser.key!=='TBD'){
         const lbTargetRound=ri*2;
         if(lb&&lbTargetRound<lb.length){
           const lbRound=lb[lbTargetRound];
           const lbIdx=Math.floor(mi/2);
           if(lbIdx<lbRound.length){
-            if(mi%2===0)lbRound[lbIdx].playerA={...loser};
-            else lbRound[lbIdx].playerB={...loser};
+            const nm=lbRound[lbIdx];
+            if(mi%2===0){if(!nm.playerA||nm.playerA.key==='TBD')nm.playerA={...loser};}
+            else{if(!nm.playerB||nm.playerB.key==='TBD')nm.playerB={...loser};}
           }
         }
       }
     });
   });
 
-  // LB propagation
+  // ── LB propagation (round-gated) ──
   (lb||[]).forEach((round,ri)=>{
-    round.forEach(m=>autoResolveBye(m)); // auto-bye for LB solo player
+    round.forEach(m=>autoResolveBye(m));
+    const roundDone=round.every(m=>m.done);
+    if(!roundDone)return;
     round.forEach((match,mi)=>{
-      if(!match.done)return;
       const winner=match.winA>=2?match.playerA:match.playerB;
+      if(!winner||winner.key==='TBD'||winner.key==='BYE')return;
       if(ri+1<lb.length){
         const nm=lb[ri+1][Math.floor(mi/2)];
-        if(mi%2===0)nm.playerA={...winner};else nm.playerB={...winner};
+        if(mi%2===0){if(!nm.playerA||nm.playerA.key==='TBD')nm.playerA={...winner};}
+        else{if(!nm.playerB||nm.playerB.key==='TBD')nm.playerB={...winner};}
       } else {
-        if(gf&&winner.key!=='BYE'&&winner.key!=='TBD')gf.playerB={...winner};
+        // LB Final winner → GF slot B
+        if(gf&&winner.key!=='BYE'&&winner.key!=='TBD'){
+          if(!gf.playerB||gf.playerB.key==='TBD')gf.playerB={...winner};
+        }
       }
     });
   });
 
-  // Auto-bye for GF if one side is still TBD but the other is filled
+  // Auto-bye for GF only if one slot filled and the other is still TBD
   autoResolveBye(gf);
 }
 
@@ -1856,12 +1908,23 @@ function renderMatchCard(match,bracketType){
   const sA=`<div class="bmc-slot${winA?' winner-slot':winB?' loser-slot':''}${tbdA?' tbd-slot':''}"><span class="bmc-name">${tbdA?'TBD':esc(match.playerA.name)}</span><span class="bmc-score">${tbdA?'':wA}</span></div>`;
   const sB=`<div class="bmc-slot${winB?' winner-slot':winA?' loser-slot':''}${tbdB?' tbd-slot':''}"><span class="bmc-name">${tbdB?'TBD':esc(match.playerB.name)}</span><span class="bmc-score">${tbdB?'':wB}</span></div>`;
   const badge=done?'<span class="bmc-badge done">DONE</span>':(tbdA||tbdB)?'<span class="bmc-badge tbd">TBD</span>':'<span class="bmc-badge pending">LIVE</span>';
-  const adm=isAdmin&&!tbdA&&!tbdB?`<div class="bmc-admin-row">
-    <button class="bmc-wbtn bmc-wbtn-a" onclick="qScore('${match.id}',1,0,'${bracketType}')">+${esc((match.playerA.name||'').split(' ')[0])}</button>
-    <button class="bmc-wbtn bmc-wbtn-b" onclick="qScore('${match.id}',0,1,'${bracketType}')">+${esc((match.playerB.name||'').split(' ')[0])}</button>
-    <button class="bmc-wbtn bmc-wbtn-r" onclick="qScore('${match.id}','r',0,'${bracketType}')">↺</button>
-    <button class="bmc-edit-btn" onclick="openMatchEdit2('${match.id}','${bracketType}')">✏️</button>
-  </div>`:isAdmin&&(tbdA||tbdB)?`<div class="bmc-admin-row"><span style="font-family:var(--fm);font-size:9px;color:var(--text-dim)">Awaiting opponent</span></div>`:'';
+  let adm='';
+  if(isAdmin){
+    if(!tbdA&&!tbdB){
+      adm=`<div class="bmc-admin-row">
+        <button class="bmc-wbtn bmc-wbtn-a" onclick="qScore('${match.id}',1,0,'${bracketType}')">+${esc((match.playerA.name||'').split(' ')[0])}</button>
+        <button class="bmc-wbtn bmc-wbtn-b" onclick="qScore('${match.id}',0,1,'${bracketType}')">+${esc((match.playerB.name||'').split(' ')[0])}</button>
+        <button class="bmc-wbtn bmc-wbtn-r" onclick="qScore('${match.id}','r',0,'${bracketType}')">↺</button>
+        <button class="bmc-edit-btn" onclick="openMatchEdit2('${match.id}','${bracketType}')">✏️ Score</button>
+        <button class="bmc-edit-btn" onclick="openMatchupEditor('${match.id}','${bracketType}')" style="color:var(--orange)">🔧</button>
+      </div>`;
+    } else {
+      adm=`<div class="bmc-admin-row">
+        <span style="font-family:var(--fm);font-size:9px;color:var(--text-dim)">⏳ Awaiting opponent</span>
+        <button class="bmc-edit-btn" onclick="openMatchupEditor('${match.id}','${bracketType}')" style="margin-left:auto;color:var(--orange)">🔧 Assign</button>
+      </div>`;
+    }
+  }
   return `<div class="bmc ${tc}" id="bmc-${match.id}"><div class="bmc-head"><span class="bmc-id">${typeof match.id==='string'?match.id:`M${match.id}`}·Bo3</span>${badge}</div>${sA}${pipsA}${sB}${pipsB}${adm}</div>`;
 }
 
@@ -2007,25 +2070,78 @@ async function saveMatchEdit(){
   if(wA===wB&&wA>=2){showAlert('editMsg','⚠️ Cannot tie at 2+ in best-of-3.','error');return;}
   const match=findMatch(editMatchTarget.id,editMatchTarget.type);
   if(!match){showAlert('editMsg','⚠️ Match not found.','error');return;}
-
-  // If this is a bye override: if admin sets real scores, clear the bye flag so it
-  // becomes a regular match. If both scores are 0, revert to the auto-bye state.
   if(editMatchTarget.isByeOverride){
     if(wA===0&&wB===0){
-      // Revert to bye — re-trigger auto-resolution on next propagate
       match.winA=0;match.winB=0;match.done=false;match.isBye=false;match.byeWinner=null;
-      // propagateBracket will re-detect and re-resolve it
     } else {
-      // Admin recorded a real result — this is now a real match
       match.winA=wA;match.winB=wB;match.done=(wA>=2||wB>=2);
-      match.isBye=false;match.byeWinner=null; // no longer a bye
+      match.isBye=false;match.byeWinner=null;
     }
   } else {
     match.winA=wA;match.winB=wB;match.done=(wA>=2||wB>=2);
-    // If admin manually cleared scores back to 0-0, also un-mark any accidental bye
     if(wA===0&&wB===0){match.done=false;}
   }
   await saveBracket();closeModal('editMatchModal');
+}
+
+// ═══════════════════════════════════════════
+// MATCHUP EDITOR — Admin can manually assign
+// players to any match slot in any round.
+// ═══════════════════════════════════════════
+let matchupTarget=null; // { id, type }
+
+function openMatchupEditor(id,type){
+  const match=findMatch(id,type);if(!match)return;
+  matchupTarget={id,type};
+
+  // Build participant list for dropdowns
+  const participants=bracketData?.participants||[];
+  const opts=`<option value="TBD">— TBD (awaiting) —</option>`
+    +participants.filter(p=>p.key!=='BYE').map(p=>`<option value="${esc(p.key)}">${esc(p.name)} (Lv.${p.level})</option>`).join('');
+
+  document.getElementById('muSelectA').innerHTML=opts;
+  document.getElementById('muSelectB').innerHTML=opts;
+  // Pre-select current values
+  const curA=match.playerA?.key==='TBD'||!match.playerA?'TBD':match.playerA.key;
+  const curB=match.playerB?.key==='TBD'||!match.playerB?'TBD':match.playerB.key;
+  document.getElementById('muSelectA').value=curA;
+  document.getElementById('muSelectB').value=curB;
+
+  const label=`${type.toUpperCase()} · Match ${id}`;
+  document.getElementById('matchupInfo').innerHTML=`
+    <div style="text-align:center">
+      <div style="font-family:var(--fm);font-size:10px;color:var(--text-dim);letter-spacing:2px;margin-bottom:.5rem">${label}</div>
+      <div style="font-family:var(--fh);font-weight:800;font-size:1rem;color:var(--yellow)">Manually assign players to this match</div>
+    </div>`;
+  clearAlert('muMsg');
+  document.getElementById('matchupModal').classList.add('open');
+}
+
+async function saveMatchup(){
+  if(!matchupTarget)return;
+  const match=findMatch(matchupTarget.id,matchupTarget.type);
+  if(!match){showAlert('muMsg','⚠️ Match not found.','error');return;}
+  const selA=gval('muSelectA'),selB=gval('muSelectB');
+  if(selA===selB&&selA!=='TBD'){showAlert('muMsg','⚠️ Cannot assign the same player to both slots.','error');return;}
+
+  const participants=bracketData?.participants||[];
+  const getP=key=>{
+    if(key==='TBD')return{...TBD};
+    return participants.find(p=>p.key===key)||{...TBD};
+  };
+  const pA=getP(selA),pB=getP(selB);
+  match.playerA={key:pA.key,name:pA.name,level:pA.level};
+  match.playerB={key:pB.key,name:pB.name,level:pB.level};
+
+  // Reset scores when matchup changes (can't keep old scores with new players)
+  match.winA=0;match.winB=0;match.done=false;match.isBye=false;match.byeWinner=null;
+
+  await saveBracket();closeModal('matchupModal');
+}
+
+function resetMatchupSlots(){
+  document.getElementById('muSelectA').value='TBD';
+  document.getElementById('muSelectB').value='TBD';
 }
 async function quickScore(){}  // legacy shim
 
@@ -2088,14 +2204,24 @@ async function resetBracket(){
   currentBracketTab='wb';renderBracketPage();showAlert('genMsg','✅ Bracket reset.','success');
 }
 
+// Re-run automatic propagation without erasing existing data.
+// Fills TBD slots based on completed match results.
+async function rePropagate(){
+  if(!bracketData){showAlert('genMsg','⚠️ No bracket to propagate.','error');return;}
+  propagateBracket();
+  await saveBracket();
+  showAlert('genMsg','✅ Matchups auto-filled from completed results.','success');
+}
+
 // ═══════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════
 document.getElementById('navToggle').addEventListener('click',()=>document.getElementById('navLinks').classList.toggle('open'));
 document.addEventListener('click',e=>{if(openPicker!==null&&!e.target.closest('.picker-wrap'))closeAllPickers();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAllPickers();['editModal','editMatchModal'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('open');});}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAllPickers();['editModal','editMatchModal','matchupModal'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('open');});}});
 document.getElementById('editModal').addEventListener('click',e=>{if(e.target===document.getElementById('editModal'))closeModal('editModal');});
 document.getElementById('editMatchModal').addEventListener('click',e=>{if(e.target===document.getElementById('editMatchModal'))closeModal('editMatchModal');});
+document.getElementById('matchupModal').addEventListener('click',e=>{if(e.target===document.getElementById('matchupModal'))closeModal('matchupModal');});
 
 // ═══════════════════════════════════════════
 // INIT
